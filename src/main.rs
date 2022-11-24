@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeZone};
+use chrono::{Local, TimeZone};
 use clap::{Parser, Subcommand, ValueEnum};
 use tfgrid_graphql::{
     graphql::Client,
