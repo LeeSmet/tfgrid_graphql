@@ -82,13 +82,13 @@ pub fn calculate_node_state_changes(
     if boot_time > start {
         state_changes.push(NodeStateChange {
             timestamp: ues[0].timestamp,
-            event: NodeState::Offline(start),
+            state: NodeState::Offline(start),
         });
     }
 
     state_changes.push(NodeStateChange {
         timestamp: ues[0].timestamp,
-        event: NodeState::Booted(boot_time),
+        state: NodeState::Booted(boot_time),
     });
 
     // Calculate state changes
@@ -109,12 +109,12 @@ pub fn calculate_node_state_changes(
             // Node went offline
             state_changes.push(NodeStateChange {
                 timestamp: window[1].timestamp,
-                event: NodeState::Offline(window[0].timestamp),
+                state: NodeState::Offline(window[0].timestamp),
             });
             // And booted again
             state_changes.push(NodeStateChange {
                 timestamp: window[1].timestamp,
-                event: NodeState::Booted(window[1].timestamp - window[1].uptime as i64),
+                state: NodeState::Booted(window[1].timestamp - window[1].uptime as i64),
             });
             continue;
         }
@@ -128,7 +128,7 @@ pub fn calculate_node_state_changes(
         if window[1].uptime < window[0].uptime {
             state_changes.push(NodeStateChange {
                 timestamp: window[1].timestamp,
-                event: NodeState::ImpossibleReboot(window[1].timestamp - window[1].uptime as i64),
+                state: NodeState::ImpossibleReboot(window[1].timestamp - window[1].uptime as i64),
             });
             continue;
         }
@@ -139,7 +139,7 @@ pub fn calculate_node_state_changes(
         {
             state_changes.push(NodeStateChange {
                 timestamp: window[1].timestamp,
-                event: NodeState::Drift(uptime_delta - ts_delta),
+                state: NodeState::Drift(uptime_delta - ts_delta),
             });
             continue;
         }
@@ -150,7 +150,7 @@ pub fn calculate_node_state_changes(
         if state_changes[state_changes.len() - 1].timestamp < end {
             state_changes.push(NodeStateChange {
                 timestamp: end,
-                event: NodeState::Unknown,
+                state: NodeState::Unknown,
             });
         }
     }
