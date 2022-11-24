@@ -145,14 +145,14 @@ pub fn calculate_node_state_changes(
         }
         // Regular point, nothing to do. Notice that a node which is offline can't report uptime,
         // therefore the last item in the state change list is always either a boot or a conflict.
+    }
 
-        // Check if state at end of period is covered.
-        if state_changes[state_changes.len() - 1].timestamp < end {
-            state_changes.push(NodeStateChange {
-                timestamp: end,
-                state: NodeState::Unknown,
-            });
-        }
+    // Check if state at end of period is covered.
+    if ues[ues.len() - 1].timestamp < end {
+        state_changes.push(NodeStateChange {
+            timestamp: end,
+            state: NodeState::Unknown,
+        });
     }
 
     state_changes
