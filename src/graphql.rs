@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 const USER_AGENT: &str = "tfgrid_graphql_client";
+const MAINNET_URL: &str = "https://graph.grid.tf/graphql";
 const UPTIME_EVENT_QUERY: &str = r#"
 query get_uptime_events($node_id: Int, $start: BigInt, $end: BigInt) {
     uptimeEvents(where: {nodeID_eq: $node_id, timestamp_gte: $start, timestamp_lte: $end}, orderBy: timestamp_ASC) {
@@ -12,6 +13,7 @@ query get_uptime_events($node_id: Int, $start: BigInt, $end: BigInt) {
 }
 "#;
 
+/// A client to connect to a Threefold Grid GraphQL instance.
 pub struct Client {
     endpoint: String,
     client: reqwest::blocking::Client,
@@ -57,6 +59,13 @@ impl Client {
         })
     }
 
+    /// Creates a new client connected to the mainnet graphql instance.
+    pub fn mainnet() -> Result<Client, Box<dyn std::error::Error>> {
+        Self::new(MAINNET_URL.to_string())
+    }
+
+    /// Fetch the uptime events for the given node in the given time range. The returned values are
+    /// requested to be sorted in ascneding timetamp order from the server.
     pub fn uptime_events(
         &self,
         node_id: u32,
@@ -85,7 +94,6 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::Client;
-    use crate::uptime::UptimeEvent;
 
     #[test]
     fn fetch_uptime_events() {
