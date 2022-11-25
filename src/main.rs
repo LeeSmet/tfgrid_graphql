@@ -65,6 +65,11 @@ fn calculate_node_states(
     node_id: u32,
     period: Period,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    println!(
+        "Checking node state between {} and {}",
+        fmt_local_time(period.start()),
+        fmt_local_time(period.end())
+    );
     println!("Fetching uptime events");
     let uptimes = client.uptime_events(
         node_id,
