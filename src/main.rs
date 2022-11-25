@@ -128,7 +128,7 @@ fn fmt_local_time(ts: i64) -> String {
     Local
         .timestamp_opt(ts, 0)
         .single()
-        .expect("Can format local timezone timestamp")
+        .expect("Local time from timestamp is unambiguous")
         .format("%d/%m/%Y %H:%M:%S")
         .to_string()
 }
