@@ -10,9 +10,9 @@ use tfgrid_graphql::{
 const POST_PERIOD_UPTIME_FETCH: i64 = 3 * 60 * 60;
 
 /// Emoji for node boot.
-const UP_ARROW_EMOJI: char = '⬆';
+const UP_ARROW_EMOJI: char = '🡅';
 /// Emoji for node going offline.
-const DOWN_ARROW_EMOJI: char = '⬇';
+const DOWN_ARROW_EMOJI: char = '🡇';
 /// Emoji for impossible reboot.
 const BOOM_EMOJI: char = '💥';
 /// Emoji for node uptime drift.
