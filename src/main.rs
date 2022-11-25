@@ -86,14 +86,12 @@ fn calculate_node_states(
     let node_states = calculate_node_state_changes(&uptimes, period.start(), period.end());
     println!();
 
+    println!(
+        "   Event                                                                 Event detected"
+    );
     for ns in node_states {
         let (emoji, msg) = node_state_formatted(ns.state());
-        println!(
-            "{:<2} {:<50} {}",
-            emoji,
-            msg,
-            fmt_local_time(ns.timestamp()),
-        );
+        println!("{:<2}{:<70}{}", emoji, msg, fmt_local_time(ns.timestamp()),);
     }
     Ok(())
 }
