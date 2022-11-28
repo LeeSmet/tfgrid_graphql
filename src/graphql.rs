@@ -1,4 +1,4 @@
-use crate::uptime::UptimeEvent;
+use crate::{bill_report::ContractBillReport, uptime::UptimeEvent};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -10,6 +10,16 @@ query get_uptime_events($node_id: Int, $start: BigInt, $end: BigInt) {
         timestamp
         uptime
     }
+}
+"#;
+const CONTRACT_BILL_REPORT_QUERY: &str = r#"
+query get_contract_bill_reports($start: BigInt, $end: BigInt) {
+  contractBillReports(where: {timestamp_gte: $start, timestamp_lte: $end}, orderBy: timestamp_ASC) {
+    amountBilled
+    contractID
+    timestamp
+    discountReceived
+  }
 }
 "#;
 
@@ -32,9 +42,15 @@ struct GraphQLResponse<T> {
     data: T,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct UptimeVariables {
     node_id: u32,
+    start: i64,
+    end: i64,
+}
+
+#[derive(Serialize)]
+struct ContractBillReportVariables {
     start: i64,
     end: i64,
 }
@@ -43,6 +59,12 @@ struct UptimeVariables {
 struct UptimeEventResponse {
     #[serde(rename = "uptimeEvents")]
     uptime_events: Vec<UptimeEvent>,
+}
+
+#[derive(Deserialize)]
+struct ContractBillEventResponse {
+    #[serde(rename = "contractBillReports")]
+    contract_bill_reports: Vec<ContractBillReport>,
 }
 
 impl Client {
@@ -64,8 +86,11 @@ impl Client {
         Self::new(MAINNET_URL.to_string())
     }
 
+    // TODO: make these methods a single generic with a trait + associated type on
+    // request/response
+
     /// Fetch the uptime events for the given node in the given time range. The returned values are
-    /// requested to be sorted in ascneding timetamp order from the server.
+    /// requested to be sorted in ascending timestamp order from the server.
     pub fn uptime_events(
         &self,
         node_id: u32,
@@ -89,6 +114,26 @@ impl Client {
             .data
             .uptime_events)
     }
+
+    /// Fetch all contract bill reports in the given time range
+    pub fn contract_bill_reports(
+        &self,
+        start: i64,
+        end: i64,
+    ) -> Result<Vec<ContractBillReport>, Box<dyn std::error::Error>> {
+        Ok(self
+            .client
+            .post(&self.endpoint)
+            .json(&GraphQLRequest {
+                operation_name: "get_contract_bill_reports",
+                query: CONTRACT_BILL_REPORT_QUERY,
+                variables: Some(&ContractBillReportVariables { start, end }),
+            })
+            .send()?
+            .json::<GraphQLResponse<ContractBillEventResponse>>()?
+            .data
+            .contract_bill_reports)
+    }
 }
 
 #[cfg(test)]
@@ -105,5 +150,17 @@ mod tests {
             .expect("Can fetch uptime events from mainnet");
 
         assert_eq!(ues.len(), 2);
+    }
+
+    #[test]
+    fn fetch_contract_bill_reports() {
+        let cl =
+            Client::new("https://graph.grid.tf/graphql".to_string()).expect("Can create a client");
+
+        let ues = cl
+            .contract_bill_reports(1663850262, 1663857474)
+            .expect("Can fetch contract bill events from mainnet");
+
+        assert_eq!(ues.len(), 223);
     }
 }

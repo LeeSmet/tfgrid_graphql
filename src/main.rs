@@ -1,5 +1,6 @@
 use chrono::{Local, TimeZone};
 use clap::{Parser, Subcommand, ValueEnum};
+use std::time::SystemTime;
 use tfgrid_graphql::{
     graphql::Client,
     period::Period,
@@ -8,6 +9,11 @@ use tfgrid_graphql::{
 
 /// Amount of time to wait after a period for possible uptime events for minting purposes.
 const POST_PERIOD_UPTIME_FETCH: i64 = 3 * 60 * 60;
+
+/// Amount of seconds in an hour.
+const SECONDS_IN_HOUR: i64 = 3_600;
+
+const UNITS_PER_TFT: u64 = 10_000_000;
 
 /// Emoji for node boot.
 const UP_ARROW_EMOJI: char = '🡅';
@@ -36,11 +42,17 @@ enum Network {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Calculate the state changes of a node
     NodeState {
         /// The id of the node for which to check the node state
         node_id: u32,
         /// The period for which to check the uptime
         period: i64,
+    },
+    /// Calculate the total amount billed for the last hours
+    TotalBilled {
+        /// Amount of hours to get bills for
+        hours: u32,
     },
 }
 
@@ -54,6 +66,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::NodeState { node_id, period } => {
             calculate_node_states(client, node_id, Period::at_offset(period))?;
+        }
+        Commands::TotalBilled { hours } => {
+            calculate_contract_bills(client, hours)?;
         }
     };
 
@@ -93,6 +108,27 @@ fn calculate_node_states(
         let (emoji, msg) = node_state_formatted(ns.state());
         println!("{:<2}{:<70}{}", emoji, msg, fmt_local_time(ns.timestamp()),);
     }
+    Ok(())
+}
+
+fn calculate_contract_bills(client: Client, hours: u32) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Calculating amount of tokens billed for the last {hours} hours");
+    println!("Fetching bill events");
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_secs() as i64;
+    let start = now - SECONDS_IN_HOUR * hours as i64;
+    let bills = client.contract_bill_reports(start, now)?;
+    println!("Calculate total bill cost");
+    println!();
+
+    println!(
+        "Total billed from {} to {}: ",
+        fmt_local_time(start),
+        fmt_local_time(now)
+    );
+    let total: u64 = bills.into_iter().map(|bill| bill.amount_billed).sum();
+    println!("\t{}.{} TFT", total / UNITS_PER_TFT, total % UNITS_PER_TFT);
     Ok(())
 }
 

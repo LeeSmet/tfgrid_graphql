@@ -1,3 +1,6 @@
+pub mod bill_report;
+/// Compatibility tools for (de)serializing data from graphql to regular data types.
+mod compat;
 pub mod graphql;
 /// Utilities to work with minting periods.
 pub mod period;
