@@ -21,18 +21,24 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         name: tfchain_graphql_osx
-        path: target/release/tfchain_graphql
+        path: target/release/tfgrid_graphql
         if-no-files-found: error
   build-linux:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
+    - name: Setup musl
+      run: |
+        set -ex
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+        rustup target add x86_64-unknown-linux-musl
     - name: Build
       run: cargo build --release --features vendored --target x86_64-unknown-linux-musl --verbose
     - uses: actions/upload-artifact@v3
       with:
         name: tfchain_graphql_linux
-        path: target/x86_64-unknown-linux-musl/release/tfchain_graphql
+        path: target/x86_64-unknown-linux-musl/release/tfgrid_graphql
         if-no-files-found: error
   build-windows:
     runs-on: windows-2022
@@ -43,5 +49,5 @@ jobs:
     - uses: actions/upload-artifact@v3
       with:
         name: tfchain_graphql_windows
-        path: target/release/tfchain_graphql.exe
+        path: target/release/tfgrid_graphql.exe
         if-no-files-found: error
