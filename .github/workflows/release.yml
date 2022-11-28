@@ -1,23 +1,47 @@
 name: Build 
 
 on: workflow_dispatch
+  #on: 
+  #  push:
+  #    tags:
+  #    - "v*"
+  #    - "!v*-*"
 
 jobs:
+  #  create-release:
+  #    runs-on: ubuntu-latest
+  #    steps:
+  #    - uses: ncipollo/release-action@v1
   build-osx:
     runs-on: macos-12 
     steps:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --release --verbose
+    - uses: actions/upload-artifact@v3
+      with:
+        name: tfchain_graphql_osx
+        path: target/release/tfchain_graphql
+        if-no-files-found: error
   build-linux:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --release --features vendored --verbose
+      run: cargo build --release --features vendored --target x86_64-unknown-linux-musl --verbose
+    - uses: actions/upload-artifact@v3
+      with:
+        name: tfchain_graphql_linux
+        path: target/x86_64-unknown-linux-musl/release/tfchain_graphql
+        if-no-files-found: error
   build-windows:
     runs-on: windows-2022
     steps:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --release --verbose
+    - uses: actions/upload-artifact@v3
+      with:
+        name: tfchain_graphql_windows
+        path: target/release/tfchain_graphql.exe
+        if-no-files-found: error
