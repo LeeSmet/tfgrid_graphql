@@ -1,10 +1,8 @@
 name: Build 
 
+on: workflow_dispatch
+
 jobs:
-  os_maxtrix:
-    strategy:
-      matrix:
-        os: [ubuntu-22.04, macos-12, windows-2022]
   build-osx:
     runs-on: macos-12 
     steps:
