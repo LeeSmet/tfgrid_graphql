@@ -1,5 +1,5 @@
-use serde::{de, Deserialize, Deserializer, Serialize};
-use serde_json::Value;
+use crate::compat::{de_i64, de_u64};
+use serde::{Deserialize, Serialize};
 
 /// Allowed difference between an advancement in uptime and an advancement in timestamp between 2
 /// consecutive events. Currently set to 5 minutes in the minting.
@@ -8,9 +8,9 @@ const ALLOWED_UPTIME_DRIFT: i64 = 60 * 5;
 /// An uptime event on the grid.
 #[derive(Serialize, Deserialize)]
 pub struct UptimeEvent {
-    #[serde(deserialize_with = "de_timestamp")]
+    #[serde(deserialize_with = "de_i64")]
     timestamp: i64,
-    #[serde(deserialize_with = "de_uptime")]
+    #[serde(deserialize_with = "de_u64")]
     uptime: u64,
 }
 
@@ -161,28 +161,4 @@ pub fn calculate_node_state_changes(
 /// Sorts a series of [`UptimeEvent`] in ascending timestamp order.
 pub fn sort_uptime_events(ue: &mut [UptimeEvent]) {
     ue.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-}
-
-// Helper function to deserialize a timestamp which is returned as string in graphql for some
-// reason
-fn de_timestamp<'de, D: Deserializer<'de>>(deserializer: D) -> Result<i64, D::Error> {
-    Ok(match Value::deserialize(deserializer)? {
-        Value::String(s) => s.parse().map_err(de::Error::custom)?,
-        Value::Number(num) => num
-            .as_i64()
-            .ok_or_else(|| de::Error::custom("Invalid number"))?,
-        _ => return Err(de::Error::custom("wrong type")),
-    })
-}
-
-// Helper function to deserialize an uptime which is returned as string in graphql for some
-// reason
-fn de_uptime<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
-    Ok(match Value::deserialize(deserializer)? {
-        Value::String(s) => s.parse().map_err(de::Error::custom)?,
-        Value::Number(num) => num
-            .as_u64()
-            .ok_or_else(|| de::Error::custom("Invalid number"))?,
-        _ => return Err(de::Error::custom("wrong type")),
-    })
 }
