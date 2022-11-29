@@ -3,7 +3,7 @@ name = "tfgrid_graphql"
 version = "0.1.0"
 edition = "2021"
 authors = ["Lee Smet <lee.smet@hotmail.com>"]
-about = "CLI to extract data related to the ThreeFold Grid from a GraphQL server."
+description = "CLI to extract data related to the ThreeFold Grid from a GraphQL server."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
