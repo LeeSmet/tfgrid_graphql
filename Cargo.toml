@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Lee Smet <lee.smet@hotmail.com>"]
 description = "CLI to extract data related to the ThreeFold Grid from a GraphQL server."
+readme = "README.md"
+repository = "https://github.com/LeeSmet/tfgrid_graphql"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
