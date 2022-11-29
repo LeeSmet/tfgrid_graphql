@@ -20,7 +20,7 @@ jobs:
       run: cargo build --release --verbose
     - uses: actions/upload-artifact@v3
       with:
-        name: tfchain_graphql_osx
+        name: tfgrid_graphql_osx
         path: target/release/tfgrid_graphql
         if-no-files-found: error
   build-linux:
@@ -37,7 +37,7 @@ jobs:
       run: cargo build --release --features vendored --target x86_64-unknown-linux-musl --verbose
     - uses: actions/upload-artifact@v3
       with:
-        name: tfchain_graphql_linux
+        name: tfgrid_graphql_linux
         path: target/x86_64-unknown-linux-musl/release/tfgrid_graphql
         if-no-files-found: error
   build-windows:
@@ -48,6 +48,6 @@ jobs:
       run: cargo build --release --verbose
     - uses: actions/upload-artifact@v3
       with:
-        name: tfchain_graphql_windows
+        name: tfgrid_graphql_windows
         path: target/release/tfgrid_graphql.exe
         if-no-files-found: error
