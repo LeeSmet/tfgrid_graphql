@@ -153,9 +153,12 @@ fn node_state_formatted(state: NodeState) -> (char, String) {
             CLOCK_EMOJI,
             format!("Uptime drift of {drift} seconds detected"),
         ),
-        NodeState::Unknown => (
+        NodeState::Unknown(since) => (
             QUESTION_MARK_EMOJI,
-            "Node status is unknown, presumed down".to_string(),
+            format!(
+                "Node status is unknown since {}, presumed down",
+                fmt_local_time(since),
+            ),
         ),
     }
 }

@@ -48,7 +48,7 @@ pub enum NodeState {
     Drift(i64),
     /// State is unknown, for minting reasons this is presumed down unless a new [`UptimeEvent`]
     /// arrives in time which proves otherwise.
-    Unknown,
+    Unknown(i64),
 }
 
 /// Calculate the state changes in a node in a given period based on a series of [`UptimeEvent`]s.
@@ -148,10 +148,11 @@ pub fn calculate_node_state_changes(
     }
 
     // Check if state at end of period is covered.
-    if ues[ues.len() - 1].timestamp < end {
+    let last_datapoint_timestamp = ues[ues.len() - 1].timestamp;
+    if last_datapoint_timestamp < end {
         state_changes.push(NodeStateChange {
             timestamp: end,
-            state: NodeState::Unknown,
+            state: NodeState::Unknown(last_datapoint_timestamp),
         });
     }
 
