@@ -1,6 +1,6 @@
 use chrono::{Local, TimeZone};
 use clap::{Parser, Subcommand, ValueEnum};
-use prettytable::{format::TableFormat, row, Table};
+use prettytable::{row, Table};
 use std::time::SystemTime;
 use tfgrid_graphql::{
     contract::ContractState,
