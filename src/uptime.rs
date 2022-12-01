@@ -125,7 +125,11 @@ pub fn calculate_node_state_changes(
         // indicates a reboot, however we already made sure the uptime is bigger than the
         // difference in timestap, meaning the reboot would have happened before the previous
         // report, which is invalid.
-        if window[1].uptime < window[0].uptime {
+        //
+        // Note we also don't allow the uptime to be the same. Since subsequent events mean time
+        // advances, uptime can not be the same as that also indicates a reboot, since there is
+        // currently no way in the known universe to freeze time.
+        if window[1].uptime <= window[0].uptime {
             state_changes.push(NodeStateChange {
                 timestamp: window[1].timestamp,
                 state: NodeState::ImpossibleReboot(window[1].timestamp - window[1].uptime as i64),
