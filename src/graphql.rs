@@ -1,5 +1,6 @@
 use crate::{
     bill_report::ContractBillReport,
+    consumption::NRUConsumption,
     contract::{ContractState, NodeContract},
     uptime::UptimeEvent,
 };
@@ -52,6 +53,16 @@ query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $offs
   }
 }
 "#;
+const NRU_CONSUMPTION_QUERY: &str = r#"
+query nru_consumptions($offset: Int, $contract_ids:[BigInt!]) {
+  nruConsumptions(where: {contractID_in: $contract_ids}, orderBy: timestamp_ASC, limit: 1000, offset: $offset) {
+    window
+    timestamp
+    nru
+    contractID
+  }
+}
+"#;
 
 /// A client to connect to a Threefold Grid GraphQL instance.
 pub struct Client {
@@ -100,6 +111,13 @@ struct ContractsVariables<'a> {
     offset: usize,
 }
 
+#[derive(Serialize)]
+struct NRUConsumptionVariables<'a> {
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    contract_ids: &'a [u64],
+    offset: usize,
+}
+
 #[derive(Deserialize)]
 struct UptimeEventResponse {
     #[serde(rename = "uptimeEvents")]
@@ -116,6 +134,12 @@ struct ContractBillEventResponse {
 struct ContractsResponse {
     #[serde(rename = "nodeContracts")]
     node_contracts: Vec<NodeContract>,
+}
+
+#[derive(Deserialize)]
+struct NRUConsumptionResponse {
+    #[serde(rename = "nruConsumptions")]
+    consumption_reports: Vec<NRUConsumption>,
 }
 
 impl Client {
@@ -240,6 +264,38 @@ impl Client {
             }
         }
         Ok(contracts)
+    }
+
+    pub fn nru_consumptions(
+        &self,
+        contract_ids: &[u64],
+    ) -> Result<Vec<NRUConsumption>, Box<dyn std::error::Error>> {
+        let mut consumptions = Vec::new();
+        let mut offset = 0;
+        loop {
+            let mut new_consumptions = self
+                .client
+                .post(&self.endpoint)
+                .json(&GraphQLRequest {
+                    operation_name: "nru_consumptions",
+                    query: NRU_CONSUMPTION_QUERY,
+                    variables: Some(&NRUConsumptionVariables {
+                        contract_ids,
+                        offset,
+                    }),
+                })
+                .send()?
+                .json::<GraphQLResponse<NRUConsumptionResponse>>()?
+                .data
+                .consumption_reports;
+            let found_objects = new_consumptions.len();
+            offset += found_objects;
+            consumptions.append(&mut new_consumptions);
+            if found_objects != PAGE_SIZE {
+                break;
+            }
+        }
+        Ok(consumptions)
     }
 }
 
