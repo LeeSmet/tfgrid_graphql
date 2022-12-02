@@ -1,8 +1,8 @@
 use crate::compat::{de_i64, de_u64};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// A report about nru consumption, also used to prove workload liveliness
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct NRUConsumption {
     #[serde(rename = "contractID", deserialize_with = "de_u64")]
     pub contract_id: u64,
