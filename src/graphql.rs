@@ -6,6 +6,9 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+/// Amount of items to fetch when iterating on graphql.
+const PAGE_SIZE: usize = 200;
+
 const USER_AGENT: &str = "tfgrid_graphql_client";
 const MAINNET_URL: &str = "https://graph.grid.tf/graphql";
 const UPTIME_EVENT_QUERY: &str = r#"
@@ -26,9 +29,9 @@ query get_contract_bill_reports($start: BigInt, $end: BigInt) {
   }
 }
 "#;
-const CONTRACTS_BY_NODE_QUERY: &str = r#"
-query contracts_by_node($nodes: [Int!], $states: [ContractState!]) {
-  nodeContracts(where: {nodeID_in: $nodes, state_in: $states}, orderBy: contractID_ASC) {
+const CONTRACTS_QUERY: &str = r#"
+query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $offset: Int) {
+  nodeContracts(where: {nodeID_in: $nodes, state_in: $states, twinID_in: $twins}, orderBy: contractID_ASC, limit: 200, offset: $offset) {
     contractID
     createdAt
     deploymentData
@@ -82,9 +85,13 @@ struct ContractBillReportVariables {
 }
 
 #[derive(Serialize)]
-struct ContractsByNodeVariables<'a> {
-    nodes: &'a [u32],
+struct ContractsVariables<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    nodes: Option<&'a [u32]>,
     states: &'a [ContractState],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    twins: Option<&'a [u32]>,
+    offset: usize,
 }
 
 #[derive(Deserialize)]
@@ -100,7 +107,7 @@ struct ContractBillEventResponse {
 }
 
 #[derive(Deserialize)]
-struct ContractsByNodeResponse {
+struct ContractsResponse {
     #[serde(rename = "nodeContracts")]
     node_contracts: Vec<NodeContract>,
 }
@@ -174,23 +181,40 @@ impl Client {
     }
 
     /// Fetch all contracts in the given states from the given nodes.
-    pub fn node_contracts(
+    pub fn contracts(
         &self,
-        nodes: &[u32],
+        nodes: Option<&[u32]>,
         states: &[ContractState],
+        twins: Option<&[u32]>,
     ) -> Result<Vec<NodeContract>, Box<dyn std::error::Error>> {
-        Ok(self
-            .client
-            .post(&self.endpoint)
-            .json(&GraphQLRequest {
-                operation_name: "contracts_by_node",
-                query: CONTRACTS_BY_NODE_QUERY,
-                variables: Some(&ContractsByNodeVariables { nodes, states }),
-            })
-            .send()?
-            .json::<GraphQLResponse<ContractsByNodeResponse>>()?
-            .data
-            .node_contracts)
+        let mut contracts = Vec::new();
+        let mut offset = 0;
+        loop {
+            let mut new_contracts = self
+                .client
+                .post(&self.endpoint)
+                .json(&GraphQLRequest {
+                    operation_name: "contracts",
+                    query: CONTRACTS_QUERY,
+                    variables: Some(&ContractsVariables {
+                        nodes,
+                        states,
+                        twins,
+                        offset,
+                    }),
+                })
+                .send()?
+                .json::<GraphQLResponse<ContractsResponse>>()?
+                .data
+                .node_contracts;
+            let found_objects = new_contracts.len();
+            offset += found_objects;
+            contracts.append(&mut new_contracts);
+            if found_objects != PAGE_SIZE {
+                break;
+            }
+        }
+        Ok(contracts)
     }
 }
 

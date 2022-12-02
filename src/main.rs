@@ -25,6 +25,13 @@ const GIB: u64 = 1 << 30;
 /// The states of a contract which are considered to be active.
 const ACTIVE_CONTRACT_STATES: [ContractState; 2] =
     [ContractState::Created, ContractState::GracePeriod];
+/// All contract states, this includes expired contract states.
+const ALL_STATES: [ContractState; 4] = [
+    ContractState::Created,
+    ContractState::GracePeriod,
+    ContractState::OutOfFunds,
+    ContractState::Deleted,
+];
 
 /// Emoji for node boot.
 const UP_ARROW_EMOJI: char = '🡅';
@@ -60,6 +67,23 @@ enum Commands {
         /// The period for which to check the uptime
         period: i64,
     },
+    /// List contracts with given parameters
+    ///
+    /// All provided filters apply to the result at the same time, e.g. if both nodes and twins are
+    /// set, only contracts deployed on the given nodes by the given twins will be returned, but
+    /// contracts on the given nodes by different twins, or contracts deployed by the twins on
+    /// different nodes will be excluded.
+    Contracts {
+        /// Include expired contracts as well
+        #[arg(short = 'e', long)]
+        include_expired: bool,
+        /// Nodes for which to list contracts
+        #[arg(short = 'n')]
+        nodes: Option<Vec<u32>>,
+        /// Twin ID's which must own the contracts
+        #[arg(short = 't')]
+        twins: Option<Vec<u32>>,
+    },
     /// List the active contracts on one or more nodes
     NodeContracts {
         /// The node ids for which to list the contracts
@@ -82,6 +106,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::NodeState { node_id, period } => {
             calculate_node_states(client, node_id, Period::at_offset(period))?;
+        }
+        Commands::Contracts {
+            include_expired,
+            nodes,
+            twins,
+        } => {
+            list_contracts(client, nodes, twins, include_expired)?;
         }
         Commands::NodeContracts { node_ids } => {
             list_node_contracts(client, node_ids)?;
@@ -130,12 +161,88 @@ fn calculate_node_states(
     Ok(())
 }
 
+fn list_contracts(
+    client: Client,
+    node_ids: Option<Vec<u32>>,
+    twin_ids: Option<Vec<u32>>,
+    include_expired: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Fetching contracts");
+    let contracts = client.contracts(
+        node_ids.as_deref(),
+        if include_expired {
+            &ALL_STATES
+        } else {
+            &ACTIVE_CONTRACT_STATES
+        },
+        twin_ids.as_deref(),
+    )?;
+    if contracts.is_empty() {
+        println!();
+        println!("No contracts found for this/these nodes");
+    }
+    let mut table = Table::new();
+    table.set_titles(row![
+        r->"Contract ID",
+        r->"Node ID",
+        r->"Owner",
+        r->"Solution Provider ID",
+        r->"Cru",
+        r->"Mru",
+        r->"Sru",
+        r->"Hru",
+        r->"Public IPs",
+        r->"Deployment Hash",
+        r->"Deployment Data",
+        r->"Created",
+        r->"State"
+    ]);
+    for contract in contracts {
+        table.add_row(row![
+            r->contract.contract_id,
+            r->contract.node_id,
+            r->contract.twin_id,
+            r->if let Some(spid) = contract.solution_provider_id {
+                format!("{spid}")
+            } else {
+                "-".to_string()
+            },
+            r->if let Some(ref r) = contract.resources_used {
+                format!("{}", r.cru)
+            } else {
+                "-".to_string()
+            },
+            r->if let Some(ref r) = contract.resources_used {
+                fmt_gib(r.mru)
+            } else {
+                "-".to_string()
+            },
+            r->if let Some(ref r) = contract.resources_used {
+                fmt_gib(r.sru)
+            } else {
+                "-".to_string()
+            },
+            r->if let Some(ref r) = contract.resources_used {
+                fmt_gib(r.hru)
+            } else {
+                "-".to_string()
+            },
+            r->contract.number_of_public_ips,
+            r->contract.deployment_hash,
+            r->fmt_deployemnt_data(contract.deployment_data),
+            r->fmt_local_time(contract.created_at / 1000),
+            r->contract.state,
+        ]);
+    }
+    table.printstd();
+    Ok(())
+}
 fn list_node_contracts(
     client: Client,
     node_ids: Vec<u32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
-    let contracts = client.node_contracts(&node_ids, &ACTIVE_CONTRACT_STATES)?;
+    let contracts = client.contracts(Some(&node_ids), &ACTIVE_CONTRACT_STATES, None)?;
     if contracts.is_empty() {
         println!();
         println!("No contracts found for this/these nodes");
