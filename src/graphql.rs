@@ -32,8 +32,8 @@ query get_contract_bill_reports($start: BigInt, $end: BigInt, $contract_ids: [Bi
 
 "#;
 const CONTRACTS_QUERY: &str = r#"
-query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $offset: Int) {
-  nodeContracts(where: {nodeID_in: $nodes, state_in: $states, twinID_in: $twins}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
+query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $contract_ids: [BigInt!], $offset: Int) {
+  nodeContracts(where: {nodeID_in: $nodes, state_in: $states, twinID_in: $twins, contractID_in: $contract_ids}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
     contractID
     createdAt
     deploymentData
@@ -108,6 +108,8 @@ struct ContractsVariables<'a> {
     states: &'a [ContractState],
     #[serde(skip_serializing_if = "Option::is_none")]
     twins: Option<&'a [u32]>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    contract_ids: &'a [u64],
     offset: usize,
 }
 
@@ -235,6 +237,7 @@ impl Client {
         nodes: Option<&[u32]>,
         states: &[ContractState],
         twins: Option<&[u32]>,
+        contract_ids: &[u64],
     ) -> Result<Vec<NodeContract>, Box<dyn std::error::Error>> {
         let mut contracts = Vec::new();
         let mut offset = 0;
@@ -249,6 +252,7 @@ impl Client {
                         nodes,
                         states,
                         twins,
+                        contract_ids,
                         offset,
                     }),
                 })

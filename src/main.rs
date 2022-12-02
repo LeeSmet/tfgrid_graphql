@@ -84,11 +84,14 @@ enum Commands {
         #[arg(short = 'e', long)]
         include_expired: bool,
         /// Nodes for which to list contracts
-        #[arg(short = 'n')]
+        #[arg(short = 'n', long)]
         nodes: Option<Vec<u32>>,
         /// Twin ID's which must own the contracts
-        #[arg(short = 't')]
+        #[arg(short = 't', long)]
         twins: Option<Vec<u32>>,
+        /// Contract ID's to list
+        #[arg(short = 'c', long)]
+        contracts: Vec<u64>,
         /// Caluclate the total cost in TFT of all contracts. This might take a while
         ///
         /// This does not account for the variance in TFT price, and just shows the total amount of
@@ -96,7 +99,7 @@ enum Commands {
         /// this might give a wrong idea of the average cost of the contract over time, as drops in
         /// TFT price will cause this amount to inflate, and similarly spikes in TFT price will
         /// cause this amount to deflate. As a result, this value is just informational.
-        #[arg(short = 'c', long)]
+        #[arg(long)]
         include_cost: bool,
         /// Calculate the total amount of public network used by the contract. This might take a
         /// while.
@@ -130,6 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             include_expired,
             nodes,
             twins,
+            contracts,
             include_cost,
             include_network,
         } => {
@@ -137,6 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 client,
                 nodes,
                 twins,
+                contracts,
                 include_expired,
                 include_cost,
                 include_network,
@@ -193,6 +198,7 @@ fn list_contracts(
     client: Client,
     node_ids: Option<Vec<u32>>,
     twin_ids: Option<Vec<u32>>,
+    contract_ids: Vec<u64>,
     include_expired: bool,
     include_cost: bool,
     include_network: bool,
@@ -206,6 +212,7 @@ fn list_contracts(
             &ACTIVE_CONTRACT_STATES
         },
         twin_ids.as_deref(),
+        &contract_ids,
     )?;
     if contracts.is_empty() {
         println!();
@@ -302,7 +309,7 @@ fn list_node_contracts(
     node_ids: Vec<u32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
-    let contracts = client.contracts(Some(&node_ids), &ACTIVE_CONTRACT_STATES, None)?;
+    let contracts = client.contracts(Some(&node_ids), &ACTIVE_CONTRACT_STATES, None, &[])?;
     if contracts.is_empty() {
         println!();
         println!("No contracts found for this/these nodes");
