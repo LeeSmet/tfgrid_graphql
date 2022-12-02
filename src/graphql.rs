@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Amount of items to fetch when iterating on graphql.
-const PAGE_SIZE: usize = 200;
+const PAGE_SIZE: usize = 1000;
 
 const USER_AGENT: &str = "tfgrid_graphql_client";
 const MAINNET_URL: &str = "https://graph.grid.tf/graphql";
@@ -20,18 +20,19 @@ query get_uptime_events($node_id: Int, $start: BigInt, $end: BigInt) {
 }
 "#;
 const CONTRACT_BILL_REPORT_QUERY: &str = r#"
-query get_contract_bill_reports($start: BigInt, $end: BigInt) {
-  contractBillReports(where: {timestamp_gte: $start, timestamp_lte: $end}, orderBy: timestamp_ASC) {
+query get_contract_bill_reports($start: BigInt, $end: BigInt, $contract_ids: [BigInt!], $offset: Int) {
+  contractBillReports(where: {timestamp_gte: $start, timestamp_lte: $end, contractID_in: $contract_ids}, orderBy: timestamp_ASC, limit: 1000, offset: $offset) {
     amountBilled
     contractID
     timestamp
     discountReceived
   }
 }
+
 "#;
 const CONTRACTS_QUERY: &str = r#"
 query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $offset: Int) {
-  nodeContracts(where: {nodeID_in: $nodes, state_in: $states, twinID_in: $twins}, orderBy: contractID_ASC, limit: 200, offset: $offset) {
+  nodeContracts(where: {nodeID_in: $nodes, state_in: $states, twinID_in: $twins}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
     contractID
     createdAt
     deploymentData
@@ -79,9 +80,14 @@ struct UptimeVariables {
 }
 
 #[derive(Serialize)]
-struct ContractBillReportVariables {
-    start: i64,
-    end: i64,
+struct ContractBillReportVariables<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end: Option<i64>,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    contract_ids: &'a [u64],
+    offset: usize,
 }
 
 #[derive(Serialize)]
@@ -163,21 +169,40 @@ impl Client {
     /// Fetch all contract bill reports in the given time range.
     pub fn contract_bill_reports(
         &self,
-        start: i64,
-        end: i64,
+        start: Option<i64>,
+        end: Option<i64>,
+        contract_ids: &[u64],
     ) -> Result<Vec<ContractBillReport>, Box<dyn std::error::Error>> {
-        Ok(self
-            .client
-            .post(&self.endpoint)
-            .json(&GraphQLRequest {
-                operation_name: "get_contract_bill_reports",
-                query: CONTRACT_BILL_REPORT_QUERY,
-                variables: Some(&ContractBillReportVariables { start, end }),
-            })
-            .send()?
-            .json::<GraphQLResponse<ContractBillEventResponse>>()?
-            .data
-            .contract_bill_reports)
+        let mut offset = 0;
+        let mut bill_reports = Vec::new();
+        loop {
+            let mut new_bills = self
+                .client
+                .post(&self.endpoint)
+                .json(&GraphQLRequest {
+                    operation_name: "get_contract_bill_reports",
+                    query: CONTRACT_BILL_REPORT_QUERY,
+                    variables: Some(&ContractBillReportVariables {
+                        start,
+                        end,
+                        contract_ids,
+                        offset,
+                    }),
+                })
+                .send()?
+                .json::<GraphQLResponse<ContractBillEventResponse>>()?
+                .data
+                .contract_bill_reports;
+            let new_objects = new_bills.len();
+            offset += new_objects;
+            bill_reports.append(&mut new_bills);
+
+            if new_objects != PAGE_SIZE {
+                break;
+            }
+        }
+
+        Ok(bill_reports)
     }
 
     /// Fetch all contracts in the given states from the given nodes.
@@ -240,7 +265,7 @@ mod tests {
             Client::new("https://graph.grid.tf/graphql".to_string()).expect("Can create a client");
 
         let ues = cl
-            .contract_bill_reports(1663850262, 1663857474)
+            .contract_bill_reports(Some(1663850262), Some(1663857474), &[])
             .expect("Can fetch contract bill events from mainnet");
 
         assert_eq!(ues.len(), 223);

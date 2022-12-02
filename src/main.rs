@@ -1,7 +1,7 @@
 use chrono::{Local, TimeZone};
 use clap::{Parser, Subcommand, ValueEnum};
 use prettytable::{row, Table};
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 use tfgrid_graphql::{
     contract::ContractState,
     graphql::Client,
@@ -83,6 +83,8 @@ enum Commands {
         /// Twin ID's which must own the contracts
         #[arg(short = 't')]
         twins: Option<Vec<u32>>,
+        #[arg(short = 'c', long)]
+        include_cost: bool,
     },
     /// List the active contracts on one or more nodes
     NodeContracts {
@@ -111,8 +113,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             include_expired,
             nodes,
             twins,
+            include_cost,
         } => {
-            list_contracts(client, nodes, twins, include_expired)?;
+            list_contracts(client, nodes, twins, include_expired, include_cost)?;
         }
         Commands::NodeContracts { node_ids } => {
             list_node_contracts(client, node_ids)?;
@@ -166,6 +169,7 @@ fn list_contracts(
     node_ids: Option<Vec<u32>>,
     twin_ids: Option<Vec<u32>>,
     include_expired: bool,
+    include_cost: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
     let contracts = client.contracts(
@@ -180,7 +184,21 @@ fn list_contracts(
     if contracts.is_empty() {
         println!();
         println!("No contracts found for this/these nodes");
+        return Ok(());
     }
+    let contract_ids = contracts.iter().map(|c| c.contract_id).collect::<Vec<_>>();
+    let mut contract_costs = if include_cost {
+        println!("Fetching contract bills");
+        client
+            .contract_bill_reports(None, None, &contract_ids)?
+            .into_iter()
+            .fold(HashMap::new(), |mut acc: HashMap<u64, u64>, value| {
+                *acc.entry(value.contract_id).or_default() += value.amount_billed;
+                acc
+            })
+    } else {
+        HashMap::new()
+    };
     let mut table = Table::new();
     table.set_titles(row![
         r->"Contract ID",
@@ -192,6 +210,7 @@ fn list_contracts(
         r->"Sru",
         r->"Hru",
         r->"Public IPs",
+        r->"Total Cost",
         r->"Deployment Hash",
         r->"Deployment Data",
         r->"Created",
@@ -228,6 +247,7 @@ fn list_contracts(
                 "-".to_string()
             },
             r->contract.number_of_public_ips,
+            r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
             r->contract.deployment_hash,
             r->fmt_deployemnt_data(contract.deployment_data),
             r->fmt_local_time(contract.created_at / 1000),
@@ -311,7 +331,7 @@ fn calculate_contract_bills(client: Client, hours: u32) -> Result<(), Box<dyn st
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_secs() as i64;
     let start = now - SECONDS_IN_HOUR * hours as i64;
-    let bills = client.contract_bill_reports(start, now)?;
+    let bills = client.contract_bill_reports(Some(start), Some(now), &[])?;
     println!("Calculate total bill cost");
     println!();
 
@@ -321,7 +341,7 @@ fn calculate_contract_bills(client: Client, hours: u32) -> Result<(), Box<dyn st
         fmt_local_time(now)
     );
     let total: u64 = bills.into_iter().map(|bill| bill.amount_billed).sum();
-    println!("\t{}.{} TFT", total / UNITS_PER_TFT, total % UNITS_PER_TFT);
+    println!("\t{}", fmt_tft(total));
     Ok(())
 }
 
@@ -379,4 +399,9 @@ fn fmt_deployemnt_data(mut data: String) -> String {
     }
 
     data
+}
+
+/// Format an amount as value in TFT
+fn fmt_tft(amount: u64) -> String {
+    format!("{}.{} TFT", amount / UNITS_PER_TFT, amount % UNITS_PER_TFT)
 }
