@@ -19,8 +19,14 @@ const SECONDS_IN_HOUR: i64 = 3_600;
 /// split up in this many pieces.
 const UNITS_PER_TFT: u64 = 10_000_000;
 
+/// Value of 1 KiB.
+const KIB: u64 = 1 << 10;
+/// Value of 1 MiB.
+const MIB: u64 = 1 << 20;
 /// Value of 1 GiB.
 const GIB: u64 = 1 << 30;
+/// Value of 1 TiB.
+const TIB: u64 = 1 << 40;
 
 /// The states of a contract which are considered to be active.
 const ACTIVE_CONTRACT_STATES: [ContractState; 2] =
@@ -83,8 +89,19 @@ enum Commands {
         /// Twin ID's which must own the contracts
         #[arg(short = 't')]
         twins: Option<Vec<u32>>,
+        /// Caluclate the total cost in TFT of all contracts. This might take a while
+        ///
+        /// This does not account for the variance in TFT price, and just shows the total amount of
+        /// TFT billed over the life of the contract. Specifically, for longer running contracts,
+        /// this might give a wrong idea of the average cost of the contract over time, as drops in
+        /// TFT price will cause this amount to inflate, and similarly spikes in TFT price will
+        /// cause this amount to deflate. As a result, this value is just informational.
         #[arg(short = 'c', long)]
         include_cost: bool,
+        /// Calculate the total amount of public network used by the contract. This might take a
+        /// while.
+        #[arg(long)]
+        include_network: bool,
     },
     /// List the active contracts on one or more nodes
     NodeContracts {
@@ -114,8 +131,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             nodes,
             twins,
             include_cost,
+            include_network,
         } => {
-            list_contracts(client, nodes, twins, include_expired, include_cost)?;
+            list_contracts(
+                client,
+                nodes,
+                twins,
+                include_expired,
+                include_cost,
+                include_network,
+            )?;
         }
         Commands::NodeContracts { node_ids } => {
             list_node_contracts(client, node_ids)?;
@@ -170,6 +195,7 @@ fn list_contracts(
     twin_ids: Option<Vec<u32>>,
     include_expired: bool,
     include_cost: bool,
+    include_network: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
     let contracts = client.contracts(
@@ -199,6 +225,18 @@ fn list_contracts(
     } else {
         HashMap::new()
     };
+    let mut network_usage = if include_network {
+        println!("Fetching NRU consumption reports");
+        client.nru_consumptions(&contract_ids)?.into_iter().fold(
+            HashMap::new(),
+            |mut acc: HashMap<u64, u64>, value| {
+                *acc.entry(value.contract_id).or_default() += value.nru;
+                acc
+            },
+        )
+    } else {
+        HashMap::new()
+    };
     let mut table = Table::new();
     table.set_titles(row![
         r->"Contract ID",
@@ -209,6 +247,7 @@ fn list_contracts(
         r->"Mru",
         r->"Sru",
         r->"Hru",
+        r->"Nru",
         r->"Public IPs",
         r->"Total Cost",
         r->"Deployment Hash",
@@ -232,20 +271,21 @@ fn list_contracts(
                 "-".to_string()
             },
             r->if let Some(ref r) = contract.resources_used {
-                fmt_gib(r.mru)
+                fmt_resources(r.mru)
             } else {
                 "-".to_string()
             },
             r->if let Some(ref r) = contract.resources_used {
-                fmt_gib(r.sru)
+                fmt_resources(r.sru)
             } else {
                 "-".to_string()
             },
             r->if let Some(ref r) = contract.resources_used {
-                fmt_gib(r.hru)
+                fmt_resources(r.hru)
             } else {
                 "-".to_string()
             },
+            r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
             r->contract.number_of_public_ips,
             r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
             r->contract.deployment_hash,
@@ -299,17 +339,17 @@ fn list_node_contracts(
                 "-".to_string()
             },
             r->if let Some(ref r) = contract.resources_used {
-                fmt_gib(r.mru)
+                fmt_resources(r.mru)
             } else {
                 "-".to_string()
             },
             r->if let Some(ref r) = contract.resources_used {
-                fmt_gib(r.sru)
+                fmt_resources(r.sru)
             } else {
                 "-".to_string()
             },
             r->if let Some(ref r) = contract.resources_used {
-                fmt_gib(r.hru)
+                fmt_resources(r.hru)
             } else {
                 "-".to_string()
             },
@@ -385,9 +425,15 @@ fn fmt_local_time(ts: i64) -> String {
         .to_string()
 }
 
-/// Format a raw byte value as GiB.
-fn fmt_gib(value: u64) -> String {
-    format!("{:.2} GiB", value as f64 / GIB as f64)
+/// Format a raw byte value as more human readable item.
+fn fmt_resources(value: u64) -> String {
+    match value {
+        v if v > TIB => format!("{:.2} TiB", value as f64 / TIB as f64),
+        v if v > GIB => format!("{:.2} GiB", value as f64 / GIB as f64),
+        v if v > MIB => format!("{:.2} MiB", value as f64 / MIB as f64),
+        v if v > KIB => format!("{:.2} KiB", value as f64 / KIB as f64),
+        v => format!("{} B", v),
+    }
 }
 
 /// Format deployment data, only retraining the first portion.
