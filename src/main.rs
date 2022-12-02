@@ -204,7 +204,7 @@ fn list_contracts(
     include_network: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
-    let contracts = client.contracts(
+    let (node_contracts, name_contracts) = client.contracts(
         node_ids.as_deref(),
         if include_expired {
             &ALL_STATES
@@ -214,12 +214,16 @@ fn list_contracts(
         twin_ids.as_deref(),
         &contract_ids,
     )?;
-    if contracts.is_empty() {
+    if node_contracts.is_empty() && name_contracts.is_empty() {
         println!();
         println!("No contracts found for this/these nodes");
         return Ok(());
     }
-    let contract_ids = contracts.iter().map(|c| c.contract_id).collect::<Vec<_>>();
+    let contract_ids = node_contracts
+        .iter()
+        .map(|c| c.contract_id)
+        .chain(name_contracts.iter().map(|c| c.contract_id))
+        .collect::<Vec<_>>();
     let mut contract_costs = if include_cost {
         println!("Fetching contract bills");
         client
@@ -244,8 +248,8 @@ fn list_contracts(
     } else {
         HashMap::new()
     };
-    let mut table = Table::new();
-    table.set_titles(row![
+    let mut node_table = Table::new();
+    node_table.set_titles(row![
         r->"Contract ID",
         r->"Node ID",
         r->"Owner",
@@ -262,8 +266,8 @@ fn list_contracts(
         r->"Created",
         r->"State"
     ]);
-    for contract in contracts {
-        table.add_row(row![
+    for contract in node_contracts {
+        node_table.add_row(row![
             r->contract.contract_id,
             r->contract.node_id,
             r->contract.twin_id,
@@ -301,15 +305,44 @@ fn list_contracts(
             r->contract.state,
         ]);
     }
-    table.printstd();
+    node_table.printstd();
+    let mut name_table = Table::new();
+    name_table.set_titles(row![
+        r->"Contract ID",
+        r->"Owner",
+        r->"Solution Provider ID",
+        r->"Name",
+        r->"Nru",
+        r->"Total Cost",
+        r->"Created",
+        r->"State"
+    ]);
+    for contract in name_contracts {
+        name_table.add_row(row![
+            r->contract.contract_id,
+            r->contract.twin_id,
+            r->if let Some(spid) = contract.solution_provider_id {
+                format!("{spid}")
+            } else {
+                "-".to_string()
+            },
+            r->contract.name,
+            r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
+            r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
+            r->fmt_local_time(contract.created_at / 1000),
+            r->contract.state,
+        ]);
+    }
+    name_table.printstd();
     Ok(())
 }
+
 fn list_node_contracts(
     client: Client,
     node_ids: Vec<u32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
-    let contracts = client.contracts(Some(&node_ids), &ACTIVE_CONTRACT_STATES, None, &[])?;
+    let (contracts, _) = client.contracts(Some(&node_ids), &ACTIVE_CONTRACT_STATES, None, &[])?;
     if contracts.is_empty() {
         println!();
         println!("No contracts found for this/these nodes");

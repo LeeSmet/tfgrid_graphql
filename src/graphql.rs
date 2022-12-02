@@ -1,7 +1,7 @@
 use crate::{
     bill_report::ContractBillReport,
     consumption::NRUConsumption,
-    contract::{ContractState, NodeContract},
+    contract::{ContractState, NameContract, NodeContract},
     uptime::UptimeEvent,
 };
 use serde::{Deserialize, Serialize};
@@ -50,6 +50,14 @@ query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $cont
     solutionProviderID
     state
     twinID
+  }
+  nameContracts(where: {state_in: $states, twinID_in: $twins, contractID_in: $contract_ids}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
+    twinID
+    state
+    solutionProviderID
+    name
+    createdAt
+    contractID
   }
 }
 "#;
@@ -136,6 +144,8 @@ struct ContractBillEventResponse {
 struct ContractsResponse {
     #[serde(rename = "nodeContracts")]
     node_contracts: Vec<NodeContract>,
+    #[serde(rename = "nameContracts")]
+    name_contracts: Vec<NameContract>,
 }
 
 #[derive(Deserialize)]
@@ -238,11 +248,15 @@ impl Client {
         states: &[ContractState],
         twins: Option<&[u32]>,
         contract_ids: &[u64],
-    ) -> Result<Vec<NodeContract>, Box<dyn std::error::Error>> {
-        let mut contracts = Vec::new();
+    ) -> Result<(Vec<NodeContract>, Vec<NameContract>), Box<dyn std::error::Error>> {
+        let mut node_contracts = Vec::new();
+        let mut name_contracts = Vec::new();
         let mut offset = 0;
         loop {
-            let mut new_contracts = self
+            let ContractsResponse {
+                name_contracts: mut new_name_contracts,
+                node_contracts: mut new_node_contracts,
+            } = self
                 .client
                 .post(&self.endpoint)
                 .json(&GraphQLRequest {
@@ -258,16 +272,16 @@ impl Client {
                 })
                 .send()?
                 .json::<GraphQLResponse<ContractsResponse>>()?
-                .data
-                .node_contracts;
-            let found_objects = new_contracts.len();
+                .data;
+            let found_objects = usize::max(new_node_contracts.len(), new_name_contracts.len());
             offset += found_objects;
-            contracts.append(&mut new_contracts);
+            node_contracts.append(&mut new_node_contracts);
+            name_contracts.append(&mut new_name_contracts);
             if found_objects != PAGE_SIZE {
                 break;
             }
         }
-        Ok(contracts)
+        Ok((node_contracts, name_contracts))
     }
 
     pub fn nru_consumptions(
