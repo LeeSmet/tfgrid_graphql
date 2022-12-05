@@ -32,8 +32,8 @@ query get_contract_bill_reports($start: BigInt, $end: BigInt, $contract_ids: [Bi
 
 "#;
 const CONTRACTS_QUERY: &str = r#"
-query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $contract_ids: [BigInt!], $offset: Int) {
-  nodeContracts(where: {nodeID_in: $nodes, state_in: $states, twinID_in: $twins, contractID_in: $contract_ids}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
+query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $contract_ids: [BigInt!], $offset: Int, $spids: [Int!]) {
+  nodeContracts(where: {nodeID_in: $nodes, state_in: $states, twinID_in: $twins, contractID_in: $contract_ids, solutionProviderID_in: $spids}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
     contractID
     createdAt
     deploymentData
@@ -51,7 +51,7 @@ query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $cont
     state
     twinID
   }
-  nameContracts(where: {state_in: $states, twinID_in: $twins, contractID_in: $contract_ids}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
+  nameContracts(where: {state_in: $states, twinID_in: $twins, contractID_in: $contract_ids, solutionProviderID_in: $spids}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
     twinID
     state
     solutionProviderID
@@ -59,7 +59,7 @@ query contracts($nodes: [Int!], $states: [ContractState!], $twins: [Int!], $cont
     createdAt
     contractID
   }
-  rentContracts(where: {state_in: $states, twinID_in: $twins, contractID_in: $contract_ids, nodeID_in: $nodes}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
+  rentContracts(where: {state_in: $states, twinID_in: $twins, contractID_in: $contract_ids, nodeID_in: $nodes, solutionProviderID_in: $spids}, orderBy: contractID_ASC, limit: 1000, offset: $offset) {
     contractID
     createdAt
     nodeID
@@ -126,6 +126,8 @@ struct ContractsVariables<'a> {
     twins: Option<&'a [u32]>,
     #[serde(skip_serializing_if = "<[_]>::is_empty")]
     contract_ids: &'a [u64],
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    spids: &'a [u32],
     offset: usize,
 }
 
@@ -258,6 +260,7 @@ impl Client {
         states: &[ContractState],
         twins: Option<&[u32]>,
         contract_ids: &[u64],
+        spids: &[u32],
     ) -> Result<(Vec<NodeContract>, Vec<NameContract>, Vec<RentContract>), Box<dyn std::error::Error>>
     {
         let mut node_contracts = Vec::new();
@@ -280,6 +283,7 @@ impl Client {
                         states,
                         twins,
                         contract_ids,
+                        spids,
                         offset,
                     }),
                 })

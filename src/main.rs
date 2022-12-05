@@ -92,6 +92,9 @@ enum Commands {
         /// Contract ID's to list
         #[arg(short = 'c', long)]
         contracts: Vec<u64>,
+        /// Solution provider ID's for which to list contracts
+        #[arg(short = 's', long)]
+        solution_provider_ids: Vec<u32>,
         /// Caluclate the total cost in TFT of all contracts. This might take a while
         ///
         /// This does not account for the variance in TFT price, and just shows the total amount of
@@ -129,6 +132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             nodes,
             twins,
             contracts,
+            solution_provider_ids,
             include_cost,
             include_network,
         } => {
@@ -137,6 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 nodes,
                 twins,
                 contracts,
+                solution_provider_ids,
                 include_expired,
                 include_cost,
                 include_network,
@@ -191,6 +196,7 @@ fn list_contracts(
     node_ids: Option<Vec<u32>>,
     twin_ids: Option<Vec<u32>>,
     contract_ids: Vec<u64>,
+    solution_provider_ids: Vec<u32>,
     include_expired: bool,
     include_cost: bool,
     include_network: bool,
@@ -205,6 +211,7 @@ fn list_contracts(
         },
         twin_ids.as_deref(),
         &contract_ids,
+        &solution_provider_ids,
     )?;
     if node_contracts.is_empty() && name_contracts.is_empty() && rent_contracts.is_empty() {
         println!();
