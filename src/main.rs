@@ -248,92 +248,96 @@ fn list_contracts(
     } else {
         HashMap::new()
     };
-    let mut node_table = Table::new();
-    node_table.set_titles(row![
-        r->"Contract ID",
-        r->"Node ID",
-        r->"Owner",
-        r->"Solution Provider ID",
-        r->"Cru",
-        r->"Mru",
-        r->"Sru",
-        r->"Hru",
-        r->"Nru",
-        r->"Public IPs",
-        r->"Total Cost",
-        r->"Deployment Hash",
-        r->"Deployment Data",
-        r->"Created",
-        r->"State"
-    ]);
-    for contract in node_contracts {
-        node_table.add_row(row![
-            r->contract.contract_id,
-            r->contract.node_id,
-            r->contract.twin_id,
-            r->if let Some(spid) = contract.solution_provider_id {
-                format!("{spid}")
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                format!("{}", r.cru)
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                fmt_resources(r.mru)
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                fmt_resources(r.sru)
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                fmt_resources(r.hru)
-            } else {
-                "-".to_string()
-            },
-            r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
-            r->contract.number_of_public_ips,
-            r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-            r->contract.deployment_hash,
-            r->fmt_deployemnt_data(contract.deployment_data),
-            r->fmt_local_time(contract.created_at / 1000),
-            r->contract.state,
+    if !node_contracts.is_empty() {
+        let mut node_table = Table::new();
+        node_table.set_titles(row![
+            r->"Contract ID",
+            r->"Node ID",
+            r->"Owner",
+            r->"Solution Provider ID",
+            r->"Cru",
+            r->"Mru",
+            r->"Sru",
+            r->"Hru",
+            r->"Nru",
+            r->"Public IPs",
+            r->"Total Cost",
+            r->"Deployment Hash",
+            r->"Deployment Data",
+            r->"Created",
+            r->"State"
         ]);
+        for contract in node_contracts {
+            node_table.add_row(row![
+                r->contract.contract_id,
+                r->contract.node_id,
+                r->contract.twin_id,
+                r->if let Some(spid) = contract.solution_provider_id {
+                    format!("{spid}")
+                } else {
+                    "-".to_string()
+                },
+                r->if let Some(ref r) = contract.resources_used {
+                    format!("{}", r.cru)
+                } else {
+                    "-".to_string()
+                },
+                r->if let Some(ref r) = contract.resources_used {
+                    fmt_resources(r.mru)
+                } else {
+                    "-".to_string()
+                },
+                r->if let Some(ref r) = contract.resources_used {
+                    fmt_resources(r.sru)
+                } else {
+                    "-".to_string()
+                },
+                r->if let Some(ref r) = contract.resources_used {
+                    fmt_resources(r.hru)
+                } else {
+                    "-".to_string()
+                },
+                r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
+                r->contract.number_of_public_ips,
+                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
+                r->contract.deployment_hash,
+                r->fmt_deployemnt_data(contract.deployment_data),
+                r->fmt_local_time(contract.created_at / 1000),
+                r->contract.state,
+            ]);
+        }
+        node_table.printstd();
     }
-    node_table.printstd();
-    let mut name_table = Table::new();
-    name_table.set_titles(row![
-        r->"Contract ID",
-        r->"Owner",
-        r->"Solution Provider ID",
-        r->"Name",
-        r->"Nru",
-        r->"Total Cost",
-        r->"Created",
-        r->"State"
-    ]);
-    for contract in name_contracts {
-        name_table.add_row(row![
-            r->contract.contract_id,
-            r->contract.twin_id,
-            r->if let Some(spid) = contract.solution_provider_id {
-                format!("{spid}")
-            } else {
-                "-".to_string()
-            },
-            r->contract.name,
-            r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
-            r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-            r->fmt_local_time(contract.created_at / 1000),
-            r->contract.state,
+    if !name_contracts.is_empty() {
+        let mut name_table = Table::new();
+        name_table.set_titles(row![
+            r->"Contract ID",
+            r->"Owner",
+            r->"Solution Provider ID",
+            r->"Name",
+            r->"Nru",
+            r->"Total Cost",
+            r->"Created",
+            r->"State"
         ]);
+        for contract in name_contracts {
+            name_table.add_row(row![
+                r->contract.contract_id,
+                r->contract.twin_id,
+                r->if let Some(spid) = contract.solution_provider_id {
+                    format!("{spid}")
+                } else {
+                    "-".to_string()
+                },
+                r->contract.name,
+                r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
+                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
+                r->fmt_local_time(contract.created_at / 1000),
+                r->contract.state,
+            ]);
+        }
+        name_table.printstd();
     }
-    name_table.printstd();
     Ok(())
 }
 
