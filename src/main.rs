@@ -196,7 +196,7 @@ fn list_contracts(
     include_network: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
-    let (node_contracts, name_contracts, _) = client.contracts(
+    let (node_contracts, name_contracts, rent_contracts) = client.contracts(
         node_ids.as_deref(),
         if include_expired {
             &ALL_STATES
@@ -206,15 +206,16 @@ fn list_contracts(
         twin_ids.as_deref(),
         &contract_ids,
     )?;
-    if node_contracts.is_empty() && name_contracts.is_empty() {
+    if node_contracts.is_empty() && name_contracts.is_empty() && rent_contracts.is_empty() {
         println!();
-        println!("No contracts found for this/these nodes");
+        println!("No contracts found for this query");
         return Ok(());
     }
     let contract_ids = node_contracts
         .iter()
         .map(|c| c.contract_id)
         .chain(name_contracts.iter().map(|c| c.contract_id))
+        .chain(rent_contracts.iter().map(|c| c.contract_id))
         .collect::<Vec<_>>();
     let mut contract_costs = if include_cost {
         println!("Fetching contract bills");
@@ -329,6 +330,34 @@ fn list_contracts(
             ]);
         }
         name_table.printstd();
+    }
+    if !rent_contracts.is_empty() {
+        let mut rent_table = Table::new();
+        rent_table.set_titles(row![
+            r->"Contract ID",
+            r->"Node ID",
+            r->"Owner",
+            r->"Solution Provider ID",
+            r->"Total Cost",
+            r->"Created",
+            r->"State"
+        ]);
+        for contract in rent_contracts {
+            rent_table.add_row(row![
+                r->contract.contract_id,
+                r->contract.node_id,
+                r->contract.twin_id,
+                r->if let Some(spid) = contract.solution_provider_id {
+                    format!("{spid}")
+                } else {
+                    "-".to_string()
+                },
+                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
+                r->fmt_local_time(contract.created_at / 1000),
+                r->contract.state,
+            ]);
+        }
+        rent_table.printstd();
     }
     Ok(())
 }
