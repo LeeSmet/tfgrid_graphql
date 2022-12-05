@@ -42,6 +42,23 @@ pub struct NameContract {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RentContract {
+    #[serde(rename = "contractID", deserialize_with = "de_u64")]
+    pub contract_id: u64,
+    // Timestamp the object was created, in milliseconds.
+    #[serde(deserialize_with = "de_i64")]
+    pub created_at: i64,
+    #[serde(rename = "nodeID")]
+    pub node_id: u32,
+    #[serde(rename = "solutionProviderID")]
+    pub solution_provider_id: Option<u32>,
+    pub state: ContractState,
+    #[serde(rename = "twinID")]
+    pub twin_id: u32,
+}
+
+#[derive(Deserialize)]
 pub struct Resources {
     #[serde(deserialize_with = "de_u64")]
     pub cru: u64,

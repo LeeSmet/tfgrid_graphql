@@ -196,7 +196,7 @@ fn list_contracts(
     include_network: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
-    let (node_contracts, name_contracts) = client.contracts(
+    let (node_contracts, name_contracts, _) = client.contracts(
         node_ids.as_deref(),
         if include_expired {
             &ALL_STATES
