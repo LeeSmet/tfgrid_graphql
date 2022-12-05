@@ -106,11 +106,6 @@ enum Commands {
         #[arg(long)]
         include_network: bool,
     },
-    /// List the active contracts on one or more nodes
-    NodeContracts {
-        /// The node ids for which to list the contracts
-        node_ids: Vec<u32>,
-    },
     /// Calculate the total amount billed for the last hours
     TotalBilled {
         /// Amount of hours to get bills for
@@ -146,9 +141,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 include_cost,
                 include_network,
             )?;
-        }
-        Commands::NodeContracts { node_ids } => {
-            list_node_contracts(client, node_ids)?;
         }
         Commands::TotalBilled { hours } => {
             calculate_contract_bills(client, hours)?;
@@ -338,73 +330,6 @@ fn list_contracts(
         }
         name_table.printstd();
     }
-    Ok(())
-}
-
-fn list_node_contracts(
-    client: Client,
-    node_ids: Vec<u32>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Fetching contracts");
-    let (contracts, _) = client.contracts(Some(&node_ids), &ACTIVE_CONTRACT_STATES, None, &[])?;
-    if contracts.is_empty() {
-        println!();
-        println!("No contracts found for this/these nodes");
-    }
-    let mut table = Table::new();
-    table.set_titles(row![
-        r->"Contract ID",
-        r->"Node ID",
-        r->"Owner",
-        r->"Solution Provider ID",
-        r->"Cru",
-        r->"Mru",
-        r->"Sru",
-        r->"Hru",
-        r->"Public IPs",
-        r->"Deployment Hash",
-        r->"Deployment Data",
-        r->"Created",
-        r->"State"
-    ]);
-    for contract in contracts {
-        table.add_row(row![
-            r->contract.contract_id,
-            r->contract.node_id,
-            r->contract.twin_id,
-            r->if let Some(spid) = contract.solution_provider_id {
-                format!("{spid}")
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                format!("{}", r.cru)
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                fmt_resources(r.mru)
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                fmt_resources(r.sru)
-            } else {
-                "-".to_string()
-            },
-            r->if let Some(ref r) = contract.resources_used {
-                fmt_resources(r.hru)
-            } else {
-                "-".to_string()
-            },
-            r->contract.number_of_public_ips,
-            r->contract.deployment_hash,
-            r->fmt_deployemnt_data(contract.deployment_data),
-            r->fmt_local_time(contract.created_at / 1000),
-            r->contract.state,
-        ]);
-    }
-    table.printstd();
     Ok(())
 }
 
