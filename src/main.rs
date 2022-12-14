@@ -1,10 +1,10 @@
 use chrono::{Local, TimeZone};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use prettytable::{format::TableFormat, row, Table};
 use std::{collections::HashMap, time::SystemTime};
 use tfgrid_graphql::{
     contract::ContractState,
-    graphql::Client,
+    graphql::{Client, Contracts},
     period::Period,
     uptime::{calculate_node_state_changes, NodeState},
 };
@@ -80,40 +80,47 @@ enum Commands {
     /// contracts on the given nodes by different twins, or contracts deployed by the twins on
     /// different nodes will be excluded.
     Contracts {
-        /// Include expired contracts as well
-        #[arg(short = 'e', long)]
-        include_expired: bool,
-        /// Nodes for which to list contracts
-        #[arg(short = 'n', long)]
-        nodes: Option<Vec<u32>>,
-        /// Twin ID's which must own the contracts
-        #[arg(short = 't', long)]
-        twins: Option<Vec<u32>>,
-        /// Contract ID's to list
-        #[arg(short = 'c', long)]
-        contracts: Vec<u64>,
-        /// Solution provider ID's for which to list contracts
-        #[arg(short = 's', long)]
-        solution_provider_ids: Vec<u32>,
-        /// Caluclate the total cost in TFT of all contracts. This might take a while
-        ///
-        /// This does not account for the variance in TFT price, and just shows the total amount of
-        /// TFT billed over the life of the contract. Specifically, for longer running contracts,
-        /// this might give a wrong idea of the average cost of the contract over time, as drops in
-        /// TFT price will cause this amount to inflate, and similarly spikes in TFT price will
-        /// cause this amount to deflate. As a result, this value is just informational.
-        #[arg(long)]
-        include_cost: bool,
-        /// Calculate the total amount of public network used by the contract. This might take a
-        /// while.
-        #[arg(long)]
-        include_network: bool,
+        #[command(flatten)]
+        filters: ContractFilters,
     },
     /// Calculate the total amount billed for the last hours
     TotalBilled {
         /// Amount of hours to get bills for
         hours: u32,
     },
+}
+
+#[derive(Args)]
+/// Filter fields for listing contracts.
+struct ContractFilters {
+    /// Nodes for which to list contracts
+    #[arg(short = 'n', long = "nodes")]
+    node_ids: Option<Vec<u32>>,
+    /// Twin ID's which must own the contracts
+    #[arg(short = 't', long = "twins")]
+    twin_ids: Option<Vec<u32>>,
+    /// Contract ID's to list
+    #[arg(short = 'c', long = "contracts")]
+    contract_ids: Vec<u64>,
+    /// Solution provider ID's for which to list contracts
+    #[arg(short = 's', long)]
+    solution_provider_ids: Vec<u32>,
+    /// Include expired contracts as well
+    #[arg(short = 'e', long)]
+    include_expired: bool,
+    /// Caluclate the total cost in TFT of all contracts. This might take a while
+    ///
+    /// This does not account for the variance in TFT price, and just shows the total amount of
+    /// TFT billed over the life of the contract. Specifically, for longer running contracts,
+    /// this might give a wrong idea of the average cost of the contract over time, as drops in
+    /// TFT price will cause this amount to inflate, and similarly spikes in TFT price will
+    /// cause this amount to deflate. As a result, this value is just informational.
+    #[arg(long)]
+    include_cost: bool,
+    /// Calculate the total amount of public network used by the contract. This might take a
+    /// while.
+    #[arg(long)]
+    include_network: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -127,25 +134,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::NodeState { node_id, period } => {
             calculate_node_states(client, node_id, Period::at_offset(period))?;
         }
-        Commands::Contracts {
-            include_expired,
-            nodes,
-            twins,
-            contracts,
-            solution_provider_ids,
-            include_cost,
-            include_network,
-        } => {
-            list_contracts(
-                client,
-                nodes,
-                twins,
-                contracts,
-                solution_provider_ids,
-                include_expired,
-                include_cost,
-                include_network,
-            )?;
+        Commands::Contracts { filters } => {
+            list_contracts(client, filters)?;
         }
         Commands::TotalBilled { hours } => {
             calculate_contract_bills(client, hours)?;
@@ -204,16 +194,23 @@ fn calculate_node_states(
 
 fn list_contracts(
     client: Client,
-    node_ids: Option<Vec<u32>>,
-    twin_ids: Option<Vec<u32>>,
-    contract_ids: Vec<u64>,
-    solution_provider_ids: Vec<u32>,
-    include_expired: bool,
-    include_cost: bool,
-    include_network: bool,
+    filters: ContractFilters,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching contracts");
-    let (node_contracts, name_contracts, rent_contracts) = client.contracts(
+    let ContractFilters {
+        node_ids,
+        twin_ids,
+        contract_ids,
+        solution_provider_ids,
+        include_expired,
+        include_cost,
+        include_network,
+    } = filters;
+    let Contracts {
+        node_contracts,
+        name_contracts,
+        rent_contracts,
+    } = client.contracts(
         node_ids.as_deref(),
         if include_expired {
             &ALL_STATES

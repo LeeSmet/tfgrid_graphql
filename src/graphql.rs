@@ -80,6 +80,16 @@ query nru_consumptions($offset: Int, $contract_ids:[BigInt!]) {
 }
 "#;
 
+/// A collection of different types of contracts.
+pub struct Contracts {
+    /// List of node contracts.
+    pub node_contracts: Vec<NodeContract>,
+    /// List of name contracts.
+    pub name_contracts: Vec<NameContract>,
+    /// List of rent contracts.
+    pub rent_contracts: Vec<RentContract>,
+}
+
 /// A client to connect to a Threefold Grid GraphQL instance.
 pub struct Client {
     endpoint: String,
@@ -261,8 +271,7 @@ impl Client {
         twins: Option<&[u32]>,
         contract_ids: &[u64],
         spids: &[u32],
-    ) -> Result<(Vec<NodeContract>, Vec<NameContract>, Vec<RentContract>), Box<dyn std::error::Error>>
-    {
+    ) -> Result<Contracts, Box<dyn std::error::Error>> {
         let mut node_contracts = Vec::new();
         let mut name_contracts = Vec::new();
         let mut rent_contracts = Vec::new();
@@ -302,7 +311,11 @@ impl Client {
                 break;
             }
         }
-        Ok((node_contracts, name_contracts, rent_contracts))
+        Ok(Contracts {
+            node_contracts,
+            name_contracts,
+            rent_contracts,
+        })
     }
 
     pub fn nru_consumptions(
