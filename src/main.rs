@@ -1,6 +1,6 @@
 use chrono::{Local, TimeZone};
 use clap::{Parser, Subcommand, ValueEnum};
-use prettytable::{row, Table};
+use prettytable::{format::TableFormat, row, Table};
 use std::{collections::HashMap, time::SystemTime};
 use tfgrid_graphql::{
     contract::ContractState,
@@ -181,13 +181,24 @@ fn calculate_node_states(
     let node_states = calculate_node_state_changes(&uptimes, period.start(), period.end());
     println!();
 
-    println!(
-        "   Event                                                                 Event detected"
-    );
+    let mut state_table = Table::new();
+    state_table.set_titles(row![
+        l->"",
+        l->"Event",
+        l->"Event detected",
+    ]);
     for ns in node_states {
         let (emoji, msg) = node_state_formatted(ns.state());
-        println!("{:<2}{:<70}{}", emoji, msg, fmt_local_time(ns.timestamp()),);
+        state_table.add_row(row![
+            l->emoji,
+            l->msg,
+            l->fmt_local_time(ns.timestamp()),
+        ]);
     }
+    let mut fmt = TableFormat::new();
+    fmt.padding(1, 1);
+    *state_table.get_format() = fmt;
+    state_table.printstd();
     Ok(())
 }
 
