@@ -445,7 +445,7 @@ fn fmt_resources(value: u64) -> String {
         v if v > GIB => format!("{:.2} GiB", value as f64 / GIB as f64),
         v if v > MIB => format!("{:.2} MiB", value as f64 / MIB as f64),
         v if v > KIB => format!("{:.2} KiB", value as f64 / KIB as f64),
-        v => format!("{} B", v),
+        v => format!("{v} B"),
     }
 }
 
