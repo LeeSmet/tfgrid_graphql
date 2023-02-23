@@ -12,6 +12,7 @@ const PAGE_SIZE: usize = 1000;
 
 const USER_AGENT: &str = "tfgrid_graphql_client";
 const MAINNET_URL: &str = "https://graph.grid.tf/graphql";
+const TESTNET_URL: &str = "https://graphql.test.grid.tf/graphql";
 const UPTIME_EVENT_QUERY: &str = r#"
 query get_uptime_events($node_id: Int, $start: BigInt, $end: BigInt) {
     uptimeEvents(where: {nodeID_eq: $node_id, timestamp_gte: $start, timestamp_lte: $end}, orderBy: timestamp_ASC) {
@@ -193,6 +194,10 @@ impl Client {
     /// Creates a new client connected to the mainnet graphql instance.
     pub fn mainnet() -> Result<Client, Box<dyn std::error::Error>> {
         Self::new(MAINNET_URL.to_string())
+    }
+
+    pub fn testnet() -> Result<Client, Box<dyn std::error::Error>> {
+        Self::new(TESTNET_URL.to_string())
     }
 
     // TODO: make these methods a single generic with a trait + associated type on

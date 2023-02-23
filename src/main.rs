@@ -62,6 +62,7 @@ struct Cli {
 #[derive(Clone, Copy, ValueEnum)]
 enum Network {
     Mainnet,
+    Testnet,
 }
 
 #[derive(Subcommand)]
@@ -128,6 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = match cli.network {
         Network::Mainnet => Client::mainnet()?,
+        Network::Testnet => Client::testnet()?,
     };
 
     match cli.command {
