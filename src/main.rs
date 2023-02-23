@@ -310,7 +310,7 @@ fn list_contracts(
                 r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
                 r->contract.deployment_hash,
                 r->fmt_deployemnt_data(contract.deployment_data),
-                r->fmt_local_time(contract.created_at / 1000),
+                r->fmt_local_time(contract.created_at),
                 r->contract.state,
             ]);
         }
@@ -340,7 +340,7 @@ fn list_contracts(
                 r->contract.name,
                 r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
                 r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-                r->fmt_local_time(contract.created_at / 1000),
+                r->fmt_local_time(contract.created_at),
                 r->contract.state,
             ]);
         }
@@ -368,7 +368,7 @@ fn list_contracts(
                     "-".to_string()
                 },
                 r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-                r->fmt_local_time(contract.created_at / 1000),
+                r->fmt_local_time(contract.created_at),
                 r->contract.state,
             ]);
         }
