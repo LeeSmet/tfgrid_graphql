@@ -3,6 +3,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use prettytable::{format::TableFormat, row, Table};
 use std::{collections::HashMap, time::SystemTime};
 use tfgrid_graphql::{
+    bill_report::graph_billed_per_hour,
     contract::ContractState,
     graphql::{Client, Contracts},
     period::Period,
@@ -392,6 +393,7 @@ fn calculate_contract_bills(client: Client, hours: u32) -> Result<(), Box<dyn st
     println!("Calculate total bill cost");
     println!();
 
+    graph_billed_per_hour(&bills)?;
     println!(
         "Total billed from {} to {}: ",
         fmt_local_time(start),

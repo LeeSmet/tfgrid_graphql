@@ -19,3 +19,4 @@ clap = { version = "4", features = ["derive"] }
 chrono = "0.4"
 openssl = { version = "0.10", features = ["vendored"] }
 prettytable-rs = "0.10"
+plotters = "0.3.4"
