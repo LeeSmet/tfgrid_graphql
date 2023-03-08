@@ -3,7 +3,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use prettytable::{format::TableFormat, row, Table};
 use std::{collections::HashMap, time::SystemTime};
 use tfgrid_graphql::{
-    bill_report::graph_billed_per_hour,
+    charts::graph_billed_per_hour,
     contract::ContractState,
     graphql::{Client, Contracts},
     period::Period,
