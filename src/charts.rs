@@ -47,7 +47,7 @@ pub fn graph_billed_per_hour(
         .set_label_area_size(LabelAreaPosition::Bottom, 40)
         .set_label_area_size(LabelAreaPosition::Right, 40)
         .caption(
-            format!("Total contract billed over time {}", reports[0].contract_id),
+            format!("Total contract billed over time"),
             ("sans-serif", 40),
         )
         .build_cartesian_2d(min_key..max_key, min_bill * 8 / 10..max_bill * 12 / 10)?
