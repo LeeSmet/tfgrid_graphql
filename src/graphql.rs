@@ -14,6 +14,7 @@ const USER_AGENT: &str = "tfgrid_graphql_client";
 const MAINNET_URL: &str = "https://graph.grid.tf/graphql";
 const TESTNET_URL: &str = "https://graphql.test.grid.tf/graphql";
 const QANET_URL: &str = "https://graphql.qa.grid.tf/graphql";
+const DEVNET_URL: &str = "https://graphql.dev.grid.tf/graphql";
 const UPTIME_EVENT_QUERY: &str = r#"
 query get_uptime_events($node_id: Int, $start: BigInt, $end: BigInt) {
     uptimeEvents(where: {nodeID_eq: $node_id, timestamp_gte: $start, timestamp_lte: $end}, orderBy: timestamp_ASC) {
@@ -202,9 +203,14 @@ impl Client {
         Self::new(TESTNET_URL.to_string())
     }
 
-    /// Creates a new client connected ot the qanet graphql instance.
+    /// Creates a new client connected to the qanet graphql instance.
     pub fn qanet() -> Result<Client, Box<dyn std::error::Error>> {
         Self::new(QANET_URL.to_string())
+    }
+
+    /// Creates a new client connected to the devnet graphql instance.
+    pub fn devnet() -> Result<Client, Box<dyn std::error::Error>> {
+        Self::new(DEVNET_URL.to_string())
     }
 
     // TODO: make these methods a single generic with a trait + associated type on

@@ -65,6 +65,7 @@ enum Network {
     Mainnet,
     Testnet,
     Qanet,
+    Devnet,
 }
 
 #[derive(Subcommand)]
@@ -133,6 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Network::Mainnet => Client::mainnet()?,
         Network::Testnet => Client::testnet()?,
         Network::Qanet => Client::qanet()?,
+        Network::Devnet => Client::devnet()?,
     };
 
     match cli.command {
