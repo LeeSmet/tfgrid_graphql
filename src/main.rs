@@ -11,7 +11,7 @@ use tfgrid_graphql::{
 };
 
 /// Amount of time to wait after a period for possible uptime events for minting purposes.
-const POST_PERIOD_UPTIME_FETCH: i64 = 3 * 60 * 60;
+const POST_PERIOD_UPTIME_FETCH: i64 = (24 + 3) * 60 * 60;
 
 /// Amount of seconds in an hour.
 const SECONDS_IN_HOUR: i64 = 3_600;
@@ -50,6 +50,8 @@ const BOOM_EMOJI: char = '💥';
 const CLOCK_EMOJI: char = '🕑';
 /// Emoji for unknown state.
 const QUESTION_MARK_EMOJI: char = '❓';
+/// Emoji for late pings.
+const HOURGLASS_EMOJI: char = '⌛';
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -426,6 +428,10 @@ fn node_state_formatted(state: NodeState) -> (char, String) {
         NodeState::Drift(drift) => (
             CLOCK_EMOJI,
             format!("Uptime drift of {drift} seconds detected"),
+        ),
+        NodeState::LatePing(lost_uptime) => (
+            HOURGLASS_EMOJI,
+            format!("Uptime report later than expected, lost {lost_uptime} seconds uptime"),
         ),
         NodeState::Unknown(since) => (
             QUESTION_MARK_EMOJI,

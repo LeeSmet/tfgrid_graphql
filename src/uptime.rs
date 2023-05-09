@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 
 /// Allowed difference between an advancement in uptime and an advancement in timestamp between 2
 /// consecutive events. Currently set to 5 minutes in the minting.
-const ALLOWED_UPTIME_DRIFT: i64 = 60 * 5;
+const ALLOWED_UPTIME_DRIFT: i64 = 60 * 1;
+/// Interval between expected node pings.
+const NODE_UPTIME_REPORT_INTERVAL: i64 = 60 * 40;
 
 /// An uptime event on the grid.
 #[derive(Serialize, Deserialize)]
@@ -46,6 +48,9 @@ pub enum NodeState {
     /// uptime increase compared to the timestamp increase. A negative value means timestamp
     /// increased more than uptime.
     Drift(i64),
+    /// Node is online but pings for this node came in later than expected, resulting in reduced
+    /// uptime being credited.
+    LatePing(u64),
     /// State is unknown, for minting reasons this is presumed down unless a new [`UptimeEvent`]
     /// arrives in time which proves otherwise.
     Unknown(i64),
@@ -149,6 +154,14 @@ pub fn calculate_node_state_changes(
         }
         // Regular point, nothing to do. Notice that a node which is offline can't report uptime,
         // therefore the last item in the state change list is always either a boot or a conflict.
+        if uptime_delta > NODE_UPTIME_REPORT_INTERVAL + ALLOWED_UPTIME_DRIFT {
+            state_changes.push(NodeStateChange {
+                timestamp: window[1].timestamp,
+                state: NodeState::LatePing(
+                    (uptime_delta - (NODE_UPTIME_REPORT_INTERVAL + ALLOWED_UPTIME_DRIFT)) as u64,
+                ),
+            })
+        }
     }
 
     // Check if state at end of period is covered.
