@@ -1,3 +1,6 @@
+#![warn(clippy::all)]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+
 use chrono::{Local, TimeZone};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use prettytable::{format::TableFormat, row, Table};
@@ -8,6 +11,8 @@ use tfgrid_graphql::{
     period::Period,
     uptime::{calculate_node_state_changes, NodeState},
 };
+
+mod app;
 
 /// Amount of time to wait after a period for possible uptime events for minting purposes.
 const POST_PERIOD_UPTIME_FETCH: i64 = 3 * 60 * 60;
@@ -126,29 +131,61 @@ struct ContractFilters {
     include_network: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
+#[cfg(not(target_arch = "wasm32"))]
+fn main() -> eframe::Result<()> {
+    use eframe::NativeOptions;
 
-    let client = match cli.network {
-        Network::Mainnet => Client::mainnet()?,
-        Network::Testnet => Client::testnet()?,
-        Network::Qanet => Client::qanet()?,
-        Network::Devnet => Client::devnet()?,
-    };
+    pretty_env_logger::init();
 
-    match cli.command {
-        Commands::NodeState { node_id, period } => {
-            calculate_node_states(client, node_id, Period::at_offset(period))?;
-        }
-        Commands::Contracts { filters } => {
-            list_contracts(client, filters)?;
-        }
-        Commands::TotalBilled { hours } => {
-            calculate_contract_bills(client, hours)?;
-        }
-    };
+    let native_options = NativeOptions::default();
+    eframe::run_native(
+        "tfgrid_graphql",
+        native_options,
+        Box::new(|cc| Box::new(app::UiState::new(cc))),
+    )
+    // let cli = Cli::parse();
 
-    Ok(())
+    // let client = match cli.network {
+    //     Network::Mainnet => Client::mainnet()?,
+    //     Network::Testnet => Client::testnet()?,
+    //     Network::Qanet => Client::qanet()?,
+    //     Network::Devnet => Client::devnet()?,
+    // };
+
+    // match cli.command {
+    //     Commands::NodeState { node_id, period } => {
+    //         calculate_node_states(client, node_id, Period::at_offset(period))?;
+    //     }
+    //     Commands::Contracts { filters } => {
+    //         list_contracts(client, filters)?;
+    //     }
+    //     Commands::TotalBilled { hours } => {
+    //         calculate_contract_bills(client, hours)?;
+    //     }
+    // };
+
+    // Ok(())
+    //
+}
+
+// When compiling to web:
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    // Redirect `log` message to `console.log` and friends:
+    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+
+    let web_options = eframe::WebOptions::default();
+
+    wasm_bindgen_futures::spawn_local(async {
+        eframe::WebRunner::new()
+            .start(
+                "tfgrid_graphql_canvas", // hardcode it
+                web_options,
+                Box::new(|cc| Box::new(app::UiState::new(cc))),
+            )
+            .await
+            .expect("failed to start eframe");
+    });
 }
 
 fn calculate_node_states(
