@@ -7,7 +7,7 @@ use eframe::{
 use egui_extras::{Column, TableBuilder};
 use poll_promise::Promise;
 use tfgrid_graphql::{
-    contract::{ContractState, NodeContract},
+    contract::{ContractState, NameContract, NodeContract},
     graphql::Contracts,
 };
 
@@ -101,6 +101,9 @@ impl App for UiState {
             Some(Ok(contracts)) => {
                 ui.collapsing("Node contracts", |ui| {
                     ui_node_contracts(ui, &contracts.node_contracts);
+                });
+                ui.collapsing("Name contracts", |ui| {
+                    ui_name_contracts(ui, &contracts.name_contracts);
                 });
             }
         });
@@ -315,6 +318,80 @@ fn ui_node_contracts(ui: &mut egui::Ui, node_contracts: &[NodeContract]) {
                                     },
                                 );
                             };
+                        });
+                        row.col(|ui| {
+                            ui.label(
+                                Local
+                                    .timestamp_opt(contract.created_at, 0)
+                                    .single()
+                                    .expect("Local time from timestamp is unambiguous")
+                                    .format("%d/%m/%Y %H:%M:%S")
+                                    .to_string(),
+                            );
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.state));
+                        });
+                    });
+                }
+            });
+    });
+}
+
+fn ui_name_contracts(ui: &mut egui::Ui, name_contracts: &[NameContract]) {
+    egui::ScrollArea::horizontal().show(ui, |ui| {
+        TableBuilder::new(ui)
+            .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
+            .columns(Column::auto().resizable(true).clip(false), 7)
+            .column(Column::remainder().clip(false).at_most(100.))
+            .striped(true)
+            .header(50.0, |mut header| {
+                for title in [
+                    "Contract ID",
+                    "Twin ID",
+                    "Solution Provider ID",
+                    "Name",
+                    "Nru",
+                    "Total Cost",
+                    "Created",
+                    "State",
+                ] {
+                    header.col(|ui| {
+                        ui.heading(title);
+                    });
+                }
+            })
+            .body(|mut body| {
+                for contract in name_contracts {
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.contract_id));
+                        });
+                        row.col(|ui| {
+                            if ui.label(format!("{}", contract.twin_id)).hovered() {
+                                egui::show_tooltip(
+                                    ui.ctx(),
+                                    egui::Id::new("contract_twin_id_tooltip"),
+                                    |ui| {
+                                        ui.label(format!(
+                                            "This contract is created and owned by twin {}",
+                                            contract.twin_id
+                                        ));
+                                    },
+                                );
+                            };
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
+                        });
+                        row.col(|ui| {
+                            ui.label(&contract.name);
+                        });
+                        row.col(|ui| {
+                            ui.label("TODO");
+                        });
+                        row.col(|ui| {
+                            ui.label("TODO");
                         });
                         row.col(|ui| {
                             ui.label(
