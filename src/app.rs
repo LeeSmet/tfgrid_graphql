@@ -13,8 +13,12 @@ use tfgrid_graphql::{
 
 pub struct UiState {
     client: tfgrid_graphql::graphql::Client,
-    promise: Option<Promise<Result<Contracts, String>>>,
     selected: MenuSelection,
+    contract_overview: ContractOverview,
+}
+
+struct ContractOverview {
+    contract_loading: Option<Promise<Result<Contracts, String>>>,
 }
 
 impl UiState {
@@ -23,8 +27,10 @@ impl UiState {
 
         Self {
             client: tfgrid_graphql::graphql::Client::mainnet().expect("can initiate client, TODO"),
-            promise: None,
             selected: MenuSelection::ContractOverview,
+            contract_overview: ContractOverview {
+                contract_loading: None,
+            },
         }
     }
 }
@@ -33,11 +39,11 @@ impl App for UiState {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         let Self {
             client,
-            promise,
             selected,
+            contract_overview: ContractOverview { contract_loading },
         } = self;
 
-        let promise = promise.get_or_insert_with(|| {
+        let cl = contract_loading.get_or_insert_with(|| {
             let client = client.clone();
             Promise::spawn_async(async move {
                 client
@@ -90,26 +96,31 @@ impl App for UiState {
             }
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| match promise.ready() {
-            // todo
-            None => {
-                ui.spinner();
-            }
-            Some(Err(err)) => {
-                ui.colored_label(ui.visuals().error_fg_color, err);
-            }
-            Some(Ok(contracts)) => {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.collapsing("Node contracts", |ui| {
-                        ui_node_contracts(ui, &contracts.node_contracts);
-                    });
-                    ui.collapsing("Name contracts", |ui| {
-                        ui_name_contracts(ui, &contracts.name_contracts);
-                    });
-                    ui.collapsing("Rent contracts", |ui| {
-                        ui_rent_contracts(ui, &contracts.rent_contracts);
-                    });
-                });
+        egui::CentralPanel::default().show(ctx, |ui| {
+            match selected {
+                MenuSelection::ContractOverview => match cl.ready() {
+                    // todo
+                    None => {
+                        ui.spinner();
+                    }
+                    Some(Err(err)) => {
+                        ui.colored_label(ui.visuals().error_fg_color, err);
+                    }
+                    Some(Ok(contracts)) => {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.collapsing("Node contracts", |ui| {
+                                ui_node_contracts(ui, &contracts.node_contracts);
+                            });
+                            ui.collapsing("Name contracts", |ui| {
+                                ui_name_contracts(ui, &contracts.name_contracts);
+                            });
+                            ui.collapsing("Rent contracts", |ui| {
+                                ui_rent_contracts(ui, &contracts.rent_contracts);
+                            });
+                        });
+                    }
+                },
+                _ => (),
             }
         });
     }
