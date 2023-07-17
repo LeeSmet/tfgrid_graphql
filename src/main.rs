@@ -188,322 +188,322 @@ fn main() {
     });
 }
 
-fn calculate_node_states(
-    client: Client,
-    node_id: u32,
-    period: Period,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!(
-        "Checking node state between {} and {}",
-        fmt_local_time(period.start()),
-        fmt_local_time(period.end())
-    );
-    println!("Fetching uptime events");
-    let uptimes = client.uptime_events(
-        node_id,
-        period.start(),
-        period.end() + POST_PERIOD_UPTIME_FETCH,
-    )?;
-
-    if uptimes.is_empty() {
-        println!("No uptime events found, node is down for the entire period");
-        return Ok(());
-    }
-
-    println!("Calculating node changes");
-    let node_states = calculate_node_state_changes(&uptimes, period.start(), period.end());
-    println!();
-
-    let mut state_table = Table::new();
-    state_table.set_titles(row![
-        l->"",
-        l->"Event",
-        l->"Event detected",
-    ]);
-    for ns in node_states {
-        let (emoji, msg) = node_state_formatted(ns.state());
-        state_table.add_row(row![
-            l->emoji,
-            l->msg,
-            l->fmt_local_time(ns.timestamp()),
-        ]);
-    }
-    let mut fmt = TableFormat::new();
-    fmt.padding(1, 1);
-    *state_table.get_format() = fmt;
-    state_table.printstd();
-    Ok(())
-}
-
-fn list_contracts(
-    client: Client,
-    filters: ContractFilters,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Fetching contracts");
-    let ContractFilters {
-        node_ids,
-        twin_ids,
-        contract_ids,
-        solution_provider_ids,
-        include_expired,
-        include_cost,
-        include_network,
-    } = filters;
-    let Contracts {
-        node_contracts,
-        name_contracts,
-        rent_contracts,
-    } = client.contracts(
-        node_ids.as_deref(),
-        if include_expired {
-            &ALL_STATES
-        } else {
-            &ACTIVE_CONTRACT_STATES
-        },
-        twin_ids.as_deref(),
-        &contract_ids,
-        &solution_provider_ids,
-    )?;
-    if node_contracts.is_empty() && name_contracts.is_empty() && rent_contracts.is_empty() {
-        println!();
-        println!("No contracts found for this query");
-        return Ok(());
-    }
-    let contract_ids = node_contracts
-        .iter()
-        .map(|c| c.contract_id)
-        .chain(name_contracts.iter().map(|c| c.contract_id))
-        .chain(rent_contracts.iter().map(|c| c.contract_id))
-        .collect::<Vec<_>>();
-    let mut contract_costs = if include_cost {
-        println!("Fetching contract bills");
-        client
-            .contract_bill_reports(None, None, &contract_ids)?
-            .into_iter()
-            .fold(HashMap::new(), |mut acc: HashMap<u64, u64>, value| {
-                *acc.entry(value.contract_id).or_default() += value.amount_billed;
-                acc
-            })
-    } else {
-        HashMap::new()
-    };
-    let mut network_usage = if include_network {
-        println!("Fetching NRU consumption reports");
-        client.nru_consumptions(&contract_ids)?.into_iter().fold(
-            HashMap::new(),
-            |mut acc: HashMap<u64, u64>, value| {
-                *acc.entry(value.contract_id).or_default() += value.nru;
-                acc
-            },
-        )
-    } else {
-        HashMap::new()
-    };
-    if !node_contracts.is_empty() {
-        let mut node_table = Table::new();
-        node_table.set_titles(row![
-            r->"Contract ID",
-            r->"Node ID",
-            r->"Owner",
-            r->"Solution Provider ID",
-            r->"Cru",
-            r->"Mru",
-            r->"Sru",
-            r->"Hru",
-            r->"Nru",
-            r->"Public IPs",
-            r->"Total Cost",
-            r->"Deployment Hash",
-            r->"Deployment Data",
-            r->"Created",
-            r->"State"
-        ]);
-        for contract in node_contracts {
-            node_table.add_row(row![
-                r->contract.contract_id,
-                r->contract.node_id,
-                r->contract.twin_id,
-                r->if let Some(spid) = contract.solution_provider_id {
-                    format!("{spid}")
-                } else {
-                    "-".to_string()
-                },
-                r->if let Some(ref r) = contract.resources_used {
-                    format!("{}", r.cru)
-                } else {
-                    "-".to_string()
-                },
-                r->if let Some(ref r) = contract.resources_used {
-                    fmt_resources(r.mru)
-                } else {
-                    "-".to_string()
-                },
-                r->if let Some(ref r) = contract.resources_used {
-                    fmt_resources(r.sru)
-                } else {
-                    "-".to_string()
-                },
-                r->if let Some(ref r) = contract.resources_used {
-                    fmt_resources(r.hru)
-                } else {
-                    "-".to_string()
-                },
-                r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
-                r->contract.number_of_public_ips,
-                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-                r->contract.deployment_hash,
-                r->fmt_deployemnt_data(contract.deployment_data),
-                r->fmt_local_time(contract.created_at),
-                r->contract.state,
-            ]);
-        }
-        node_table.printstd();
-    }
-    if !name_contracts.is_empty() {
-        let mut name_table = Table::new();
-        name_table.set_titles(row![
-            r->"Contract ID",
-            r->"Owner",
-            r->"Solution Provider ID",
-            r->"Name",
-            r->"Nru",
-            r->"Total Cost",
-            r->"Created",
-            r->"State"
-        ]);
-        for contract in name_contracts {
-            name_table.add_row(row![
-                r->contract.contract_id,
-                r->contract.twin_id,
-                r->if let Some(spid) = contract.solution_provider_id {
-                    format!("{spid}")
-                } else {
-                    "-".to_string()
-                },
-                r->contract.name,
-                r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
-                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-                r->fmt_local_time(contract.created_at),
-                r->contract.state,
-            ]);
-        }
-        name_table.printstd();
-    }
-    if !rent_contracts.is_empty() {
-        let mut rent_table = Table::new();
-        rent_table.set_titles(row![
-            r->"Contract ID",
-            r->"Node ID",
-            r->"Owner",
-            r->"Solution Provider ID",
-            r->"Total Cost",
-            r->"Created",
-            r->"State"
-        ]);
-        for contract in rent_contracts {
-            rent_table.add_row(row![
-                r->contract.contract_id,
-                r->contract.node_id,
-                r->contract.twin_id,
-                r->if let Some(spid) = contract.solution_provider_id {
-                    format!("{spid}")
-                } else {
-                    "-".to_string()
-                },
-                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-                r->fmt_local_time(contract.created_at),
-                r->contract.state,
-            ]);
-        }
-        rent_table.printstd();
-    }
-    Ok(())
-}
-
-fn calculate_contract_bills(client: Client, hours: u32) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Calculating amount of tokens billed for the last {hours} hours");
-    println!("Fetching bill events");
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)?
-        .as_secs() as i64;
-    let start = now - SECONDS_IN_HOUR * hours as i64;
-    let bills = client.contract_bill_reports(Some(start), Some(now), &[])?;
-    println!("Calculate total bill cost");
-    println!();
-
-    println!(
-        "Total billed from {} to {}: ",
-        fmt_local_time(start),
-        fmt_local_time(now)
-    );
-    let total: u64 = bills.into_iter().map(|bill| bill.amount_billed).sum();
-    println!("\t{}", fmt_tft(total));
-    Ok(())
-}
-
-fn node_state_formatted(state: NodeState) -> (char, String) {
-    match state {
-        NodeState::Offline(ts) => (
-            DOWN_ARROW_EMOJI,
-            format!("Node went down at {}", fmt_local_time(ts)),
-        ),
-        NodeState::Booted(ts) => (
-            UP_ARROW_EMOJI,
-            format!("Node booted at {}", fmt_local_time(ts),),
-        ),
-        NodeState::ImpossibleReboot(ts) => (
-            BOOM_EMOJI,
-            format!(
-                "Supposed boot at {} which conflicts with other info",
-                fmt_local_time(ts),
-            ),
-        ),
-        NodeState::Drift(drift) => (
-            CLOCK_EMOJI,
-            format!("Uptime drift of {drift} seconds detected"),
-        ),
-        NodeState::Unknown(since) => (
-            QUESTION_MARK_EMOJI,
-            format!(
-                "Node status is unknown since {}, presumed down",
-                fmt_local_time(since),
-            ),
-        ),
-    }
-}
-
-fn fmt_local_time(ts: i64) -> String {
-    Local
-        .timestamp_opt(ts, 0)
-        .single()
-        .expect("Local time from timestamp is unambiguous")
-        .format("%d/%m/%Y %H:%M:%S")
-        .to_string()
-}
-
-/// Format a raw byte value as more human readable item.
-fn fmt_resources(value: u64) -> String {
-    match value {
-        v if v > TIB => format!("{:.2} TiB", value as f64 / TIB as f64),
-        v if v > GIB => format!("{:.2} GiB", value as f64 / GIB as f64),
-        v if v > MIB => format!("{:.2} MiB", value as f64 / MIB as f64),
-        v if v > KIB => format!("{:.2} KiB", value as f64 / KIB as f64),
-        v => format!("{v} B"),
-    }
-}
-
-/// Format deployment data, only retraining the first portion.
-fn fmt_deployemnt_data(mut data: String) -> String {
-    if data.len() > 30 {
-        // FIXME
-        data = data[..30].to_string();
-        data.push_str("...");
-    }
-
-    data
-}
-
-/// Format an amount as value in TFT
-fn fmt_tft(amount: u64) -> String {
-    format!("{}.{} TFT", amount / UNITS_PER_TFT, amount % UNITS_PER_TFT)
-}
+//fn calculate_node_states(
+//    client: Client,
+//    node_id: u32,
+//    period: Period,
+//) -> Result<(), Box<dyn std::error::Error>> {
+//    println!(
+//        "Checking node state between {} and {}",
+//        fmt_local_time(period.start()),
+//        fmt_local_time(period.end())
+//    );
+//    println!("Fetching uptime events");
+//    let uptimes = client.uptime_events(
+//        node_id,
+//        period.start(),
+//        period.end() + POST_PERIOD_UPTIME_FETCH,
+//    )?;
+//
+//    if uptimes.is_empty() {
+//        println!("No uptime events found, node is down for the entire period");
+//        return Ok(());
+//    }
+//
+//    println!("Calculating node changes");
+//    let node_states = calculate_node_state_changes(&uptimes, period.start(), period.end());
+//    println!();
+//
+//    let mut state_table = Table::new();
+//    state_table.set_titles(row![
+//        l->"",
+//        l->"Event",
+//        l->"Event detected",
+//    ]);
+//    for ns in node_states {
+//        let (emoji, msg) = node_state_formatted(ns.state());
+//        state_table.add_row(row![
+//            l->emoji,
+//            l->msg,
+//            l->fmt_local_time(ns.timestamp()),
+//        ]);
+//    }
+//    let mut fmt = TableFormat::new();
+//    fmt.padding(1, 1);
+//    *state_table.get_format() = fmt;
+//    state_table.printstd();
+//    Ok(())
+//}
+//
+//fn list_contracts(
+//    client: Client,
+//    filters: ContractFilters,
+//) -> Result<(), Box<dyn std::error::Error>> {
+//    println!("Fetching contracts");
+//    let ContractFilters {
+//        node_ids,
+//        twin_ids,
+//        contract_ids,
+//        solution_provider_ids,
+//        include_expired,
+//        include_cost,
+//        include_network,
+//    } = filters;
+//    let Contracts {
+//        node_contracts,
+//        name_contracts,
+//        rent_contracts,
+//    } = client.contracts(
+//        node_ids.as_deref(),
+//        if include_expired {
+//            &ALL_STATES
+//        } else {
+//            &ACTIVE_CONTRACT_STATES
+//        },
+//        twin_ids.as_deref(),
+//        &contract_ids,
+//        &solution_provider_ids,
+//    )?;
+//    if node_contracts.is_empty() && name_contracts.is_empty() && rent_contracts.is_empty() {
+//        println!();
+//        println!("No contracts found for this query");
+//        return Ok(());
+//    }
+//    let contract_ids = node_contracts
+//        .iter()
+//        .map(|c| c.contract_id)
+//        .chain(name_contracts.iter().map(|c| c.contract_id))
+//        .chain(rent_contracts.iter().map(|c| c.contract_id))
+//        .collect::<Vec<_>>();
+//    let mut contract_costs = if include_cost {
+//        println!("Fetching contract bills");
+//        client
+//            .contract_bill_reports(None, None, &contract_ids)?
+//            .into_iter()
+//            .fold(HashMap::new(), |mut acc: HashMap<u64, u64>, value| {
+//                *acc.entry(value.contract_id).or_default() += value.amount_billed;
+//                acc
+//            })
+//    } else {
+//        HashMap::new()
+//    };
+//    let mut network_usage = if include_network {
+//        println!("Fetching NRU consumption reports");
+//        client.nru_consumptions(&contract_ids)?.into_iter().fold(
+//            HashMap::new(),
+//            |mut acc: HashMap<u64, u64>, value| {
+//                *acc.entry(value.contract_id).or_default() += value.nru;
+//                acc
+//            },
+//        )
+//    } else {
+//        HashMap::new()
+//    };
+//    if !node_contracts.is_empty() {
+//        let mut node_table = Table::new();
+//        node_table.set_titles(row![
+//            r->"Contract ID",
+//            r->"Node ID",
+//            r->"Owner",
+//            r->"Solution Provider ID",
+//            r->"Cru",
+//            r->"Mru",
+//            r->"Sru",
+//            r->"Hru",
+//            r->"Nru",
+//            r->"Public IPs",
+//            r->"Total Cost",
+//            r->"Deployment Hash",
+//            r->"Deployment Data",
+//            r->"Created",
+//            r->"State"
+//        ]);
+//        for contract in node_contracts {
+//            node_table.add_row(row![
+//                r->contract.contract_id,
+//                r->contract.node_id,
+//                r->contract.twin_id,
+//                r->if let Some(spid) = contract.solution_provider_id {
+//                    format!("{spid}")
+//                } else {
+//                    "-".to_string()
+//                },
+//                r->if let Some(ref r) = contract.resources_used {
+//                    format!("{}", r.cru)
+//                } else {
+//                    "-".to_string()
+//                },
+//                r->if let Some(ref r) = contract.resources_used {
+//                    fmt_resources(r.mru)
+//                } else {
+//                    "-".to_string()
+//                },
+//                r->if let Some(ref r) = contract.resources_used {
+//                    fmt_resources(r.sru)
+//                } else {
+//                    "-".to_string()
+//                },
+//                r->if let Some(ref r) = contract.resources_used {
+//                    fmt_resources(r.hru)
+//                } else {
+//                    "-".to_string()
+//                },
+//                r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
+//                r->contract.number_of_public_ips,
+//                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
+//                r->contract.deployment_hash,
+//                r->fmt_deployemnt_data(contract.deployment_data),
+//                r->fmt_local_time(contract.created_at),
+//                r->contract.state,
+//            ]);
+//        }
+//        node_table.printstd();
+//    }
+//    if !name_contracts.is_empty() {
+//        let mut name_table = Table::new();
+//        name_table.set_titles(row![
+//            r->"Contract ID",
+//            r->"Owner",
+//            r->"Solution Provider ID",
+//            r->"Name",
+//            r->"Nru",
+//            r->"Total Cost",
+//            r->"Created",
+//            r->"State"
+//        ]);
+//        for contract in name_contracts {
+//            name_table.add_row(row![
+//                r->contract.contract_id,
+//                r->contract.twin_id,
+//                r->if let Some(spid) = contract.solution_provider_id {
+//                    format!("{spid}")
+//                } else {
+//                    "-".to_string()
+//                },
+//                r->contract.name,
+//                r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
+//                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
+//                r->fmt_local_time(contract.created_at),
+//                r->contract.state,
+//            ]);
+//        }
+//        name_table.printstd();
+//    }
+//    if !rent_contracts.is_empty() {
+//        let mut rent_table = Table::new();
+//        rent_table.set_titles(row![
+//            r->"Contract ID",
+//            r->"Node ID",
+//            r->"Owner",
+//            r->"Solution Provider ID",
+//            r->"Total Cost",
+//            r->"Created",
+//            r->"State"
+//        ]);
+//        for contract in rent_contracts {
+//            rent_table.add_row(row![
+//                r->contract.contract_id,
+//                r->contract.node_id,
+//                r->contract.twin_id,
+//                r->if let Some(spid) = contract.solution_provider_id {
+//                    format!("{spid}")
+//                } else {
+//                    "-".to_string()
+//                },
+//                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
+//                r->fmt_local_time(contract.created_at),
+//                r->contract.state,
+//            ]);
+//        }
+//        rent_table.printstd();
+//    }
+//    Ok(())
+//}
+//
+//fn calculate_contract_bills(client: Client, hours: u32) -> Result<(), Box<dyn std::error::Error>> {
+//    println!("Calculating amount of tokens billed for the last {hours} hours");
+//    println!("Fetching bill events");
+//    let now = SystemTime::now()
+//        .duration_since(SystemTime::UNIX_EPOCH)?
+//        .as_secs() as i64;
+//    let start = now - SECONDS_IN_HOUR * hours as i64;
+//    let bills = client.contract_bill_reports(Some(start), Some(now), &[])?;
+//    println!("Calculate total bill cost");
+//    println!();
+//
+//    println!(
+//        "Total billed from {} to {}: ",
+//        fmt_local_time(start),
+//        fmt_local_time(now)
+//    );
+//    let total: u64 = bills.into_iter().map(|bill| bill.amount_billed).sum();
+//    println!("\t{}", fmt_tft(total));
+//    Ok(())
+//}
+//
+//fn node_state_formatted(state: NodeState) -> (char, String) {
+//    match state {
+//        NodeState::Offline(ts) => (
+//            DOWN_ARROW_EMOJI,
+//            format!("Node went down at {}", fmt_local_time(ts)),
+//        ),
+//        NodeState::Booted(ts) => (
+//            UP_ARROW_EMOJI,
+//            format!("Node booted at {}", fmt_local_time(ts),),
+//        ),
+//        NodeState::ImpossibleReboot(ts) => (
+//            BOOM_EMOJI,
+//            format!(
+//                "Supposed boot at {} which conflicts with other info",
+//                fmt_local_time(ts),
+//            ),
+//        ),
+//        NodeState::Drift(drift) => (
+//            CLOCK_EMOJI,
+//            format!("Uptime drift of {drift} seconds detected"),
+//        ),
+//        NodeState::Unknown(since) => (
+//            QUESTION_MARK_EMOJI,
+//            format!(
+//                "Node status is unknown since {}, presumed down",
+//                fmt_local_time(since),
+//            ),
+//        ),
+//    }
+//}
+//
+//fn fmt_local_time(ts: i64) -> String {
+//    Local
+//        .timestamp_opt(ts, 0)
+//        .single()
+//        .expect("Local time from timestamp is unambiguous")
+//        .format("%d/%m/%Y %H:%M:%S")
+//        .to_string()
+//}
+//
+///// Format a raw byte value as more human readable item.
+//fn fmt_resources(value: u64) -> String {
+//    match value {
+//        v if v > TIB => format!("{:.2} TiB", value as f64 / TIB as f64),
+//        v if v > GIB => format!("{:.2} GiB", value as f64 / GIB as f64),
+//        v if v > MIB => format!("{:.2} MiB", value as f64 / MIB as f64),
+//        v if v > KIB => format!("{:.2} KiB", value as f64 / KIB as f64),
+//        v => format!("{v} B"),
+//    }
+//}
+//
+///// Format deployment data, only retraining the first portion.
+//fn fmt_deployemnt_data(mut data: String) -> String {
+//    if data.len() > 30 {
+//        // FIXME
+//        data = data[..30].to_string();
+//        data.push_str("...");
+//    }
+//
+//    data
+//}
+//
+///// Format an amount as value in TFT
+//fn fmt_tft(amount: u64) -> String {
+//    format!("{}.{} TFT", amount / UNITS_PER_TFT, amount % UNITS_PER_TFT)
+//}

@@ -94,9 +94,10 @@ pub struct Contracts {
 }
 
 /// A client to connect to a Threefold Grid GraphQL instance.
+#[derive(Clone)]
 pub struct Client {
     endpoint: String,
-    client: reqwest::blocking::Client,
+    client: reqwest::Client,
 }
 
 #[derive(Serialize)]
@@ -185,11 +186,14 @@ impl Client {
     pub fn new(endpoint: String) -> Result<Client, Box<dyn std::error::Error>> {
         Ok(Client {
             endpoint,
-            client: reqwest::blocking::ClientBuilder::new()
+            #[cfg(not(target_arch = "wasm32"))]
+            client: reqwest::ClientBuilder::new()
                 .gzip(true)
                 .connect_timeout(Duration::from_secs(5))
                 .user_agent(USER_AGENT)
                 .build()?,
+            #[cfg(target_arch = "wasm32")]
+            client: reqwest::ClientBuilder::new().build()?,
         })
     }
 
@@ -218,7 +222,7 @@ impl Client {
 
     /// Fetch the uptime events for the given node in the given time range. The returned values are
     /// requested to be sorted in ascending timestamp order from the server.
-    pub fn uptime_events(
+    pub async fn uptime_events(
         &self,
         node_id: u32,
         start: i64,
@@ -236,14 +240,16 @@ impl Client {
                     end,
                 }),
             })
-            .send()?
-            .json::<GraphQLResponse<UptimeEventResponse>>()?
+            .send()
+            .await?
+            .json::<GraphQLResponse<UptimeEventResponse>>()
+            .await?
             .data
             .uptime_events)
     }
 
     /// Fetch all contract bill reports in the given time range.
-    pub fn contract_bill_reports(
+    pub async fn contract_bill_reports(
         &self,
         start: Option<i64>,
         end: Option<i64>,
@@ -265,8 +271,10 @@ impl Client {
                         offset,
                     }),
                 })
-                .send()?
-                .json::<GraphQLResponse<ContractBillEventResponse>>()?
+                .send()
+                .await?
+                .json::<GraphQLResponse<ContractBillEventResponse>>()
+                .await?
                 .data
                 .contract_bill_reports;
             let new_objects = new_bills.len();
@@ -282,14 +290,14 @@ impl Client {
     }
 
     /// Fetch all contracts in the given states from the given nodes.
-    pub fn contracts(
+    pub async fn contracts(
         &self,
         nodes: Option<&[u32]>,
         states: &[ContractState],
         twins: Option<&[u32]>,
         contract_ids: &[u64],
         spids: &[u32],
-    ) -> Result<Contracts, Box<dyn std::error::Error>> {
+    ) -> Result<Contracts, String> {
         let mut node_contracts = Vec::new();
         let mut name_contracts = Vec::new();
         let mut rent_contracts = Vec::new();
@@ -314,8 +322,12 @@ impl Client {
                         offset,
                     }),
                 })
-                .send()?
-                .json::<GraphQLResponse<ContractsResponse>>()?
+                .send()
+                .await
+                .map_err(|e| format!("{}", e))?
+                .json::<GraphQLResponse<ContractsResponse>>()
+                .await
+                .map_err(|e| format!("{}", e))?
                 .data;
             let found_objects = usize::max(
                 new_node_contracts.len(),
@@ -336,7 +348,7 @@ impl Client {
         })
     }
 
-    pub fn nru_consumptions(
+    pub async fn nru_consumptions(
         &self,
         contract_ids: &[u64],
     ) -> Result<Vec<NRUConsumption>, Box<dyn std::error::Error>> {
@@ -354,8 +366,10 @@ impl Client {
                         offset,
                     }),
                 })
-                .send()?
-                .json::<GraphQLResponse<NRUConsumptionResponse>>()?
+                .send()
+                .await?
+                .json::<GraphQLResponse<NRUConsumptionResponse>>()
+                .await?
                 .data
                 .consumption_reports;
             let found_objects = new_consumptions.len();
