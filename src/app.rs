@@ -7,7 +7,7 @@ use eframe::{
 use egui_extras::{Column, TableBuilder};
 use poll_promise::Promise;
 use tfgrid_graphql::{
-    contract::{ContractState, NameContract, NodeContract},
+    contract::{ContractState, NameContract, NodeContract, RentContract},
     graphql::Contracts,
 };
 
@@ -105,97 +105,11 @@ impl App for UiState {
                 ui.collapsing("Name contracts", |ui| {
                     ui_name_contracts(ui, &contracts.name_contracts);
                 });
+                ui.collapsing("Rent contracts", |ui| {
+                    ui_rent_contracts(ui, &contracts.rent_contracts);
+                });
             }
         });
-
-        //    let contract_ids = node_contracts
-        //        .iter()
-        //        .map(|c| c.contract_id)
-        //        .chain(name_contracts.iter().map(|c| c.contract_id))
-        //        .chain(rent_contracts.iter().map(|c| c.contract_id))
-        //        .collect::<Vec<_>>();
-        //    let mut contract_costs = if include_cost {
-        //        println!("Fetching contract bills");
-        //        client
-        //            .contract_bill_reports(None, None, &contract_ids)?
-        //            .into_iter()
-        //            .fold(HashMap::new(), |mut acc: HashMap<u64, u64>, value| {
-        //                *acc.entry(value.contract_id).or_default() += value.amount_billed;
-        //                acc
-        //            })
-        //    } else {
-        //        HashMap::new()
-        //    };
-        //    let mut network_usage = if include_network {
-        //        println!("Fetching NRU consumption reports");
-        //        client.nru_consumptions(&contract_ids)?.into_iter().fold(
-        //            HashMap::new(),
-        //            |mut acc: HashMap<u64, u64>, value| {
-        //                *acc.entry(value.contract_id).or_default() += value.nru;
-        //                acc
-        //            },
-        //        )
-        //    } else {
-        //        HashMap::new()
-        //    };
-        //    if !name_contracts.is_empty() {
-        //        let mut name_table = Table::new();
-        //        name_table.set_titles(row![
-        //            r->"Contract ID",
-        //            r->"Owner",
-        //            r->"Solution Provider ID",
-        //            r->"Name",
-        //            r->"Nru",
-        //            r->"Total Cost",
-        //            r->"Created",
-        //            r->"State"
-        //        ]);
-        //        for contract in name_contracts {
-        //            name_table.add_row(row![
-        //                r->contract.contract_id,
-        //                r->contract.twin_id,
-        //                r->if let Some(spid) = contract.solution_provider_id {
-        //                    format!("{spid}")
-        //                } else {
-        //                    "-".to_string()
-        //                },
-        //                r->contract.name,
-        //                r->fmt_resources(network_usage.remove(&contract.contract_id).unwrap_or_default()),
-        //                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-        //                r->fmt_local_time(contract.created_at),
-        //                r->contract.state,
-        //            ]);
-        //        }
-        //        name_table.printstd();
-        //    }
-        //    if !rent_contracts.is_empty() {
-        //        let mut rent_table = Table::new();
-        //        rent_table.set_titles(row![
-        //            r->"Contract ID",
-        //            r->"Node ID",
-        //            r->"Owner",
-        //            r->"Solution Provider ID",
-        //            r->"Total Cost",
-        //            r->"Created",
-        //            r->"State"
-        //        ]);
-        //        for contract in rent_contracts {
-        //            rent_table.add_row(row![
-        //                r->contract.contract_id,
-        //                r->contract.node_id,
-        //                r->contract.twin_id,
-        //                r->if let Some(spid) = contract.solution_provider_id {
-        //                    format!("{spid}")
-        //                } else {
-        //                    "-".to_string()
-        //                },
-        //                r->fmt_tft(contract_costs.remove(&contract.contract_id).unwrap_or_default()),
-        //                r->fmt_local_time(contract.created_at),
-        //                r->contract.state,
-        //            ]);
-        //        }
-        //        rent_table.printstd();
-        //    }
     }
 }
 
@@ -389,6 +303,76 @@ fn ui_name_contracts(ui: &mut egui::Ui, name_contracts: &[NameContract]) {
                         });
                         row.col(|ui| {
                             ui.label("TODO");
+                        });
+                        row.col(|ui| {
+                            ui.label("TODO");
+                        });
+                        row.col(|ui| {
+                            ui.label(
+                                Local
+                                    .timestamp_opt(contract.created_at, 0)
+                                    .single()
+                                    .expect("Local time from timestamp is unambiguous")
+                                    .format("%d/%m/%Y %H:%M:%S")
+                                    .to_string(),
+                            );
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.state));
+                        });
+                    });
+                }
+            });
+    });
+}
+
+fn ui_rent_contracts(ui: &mut egui::Ui, rent_contracts: &[RentContract]) {
+    egui::ScrollArea::horizontal().show(ui, |ui| {
+        TableBuilder::new(ui)
+            .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
+            .columns(Column::auto().resizable(true).clip(false), 6)
+            .column(Column::remainder().clip(false).at_most(100.))
+            .striped(true)
+            .header(50.0, |mut header| {
+                for title in [
+                    "Contract ID",
+                    "Node ID",
+                    "Twin ID",
+                    "Solution Provider ID",
+                    "Total Cost",
+                    "Created",
+                    "State",
+                ] {
+                    header.col(|ui| {
+                        ui.heading(title);
+                    });
+                }
+            })
+            .body(|mut body| {
+                for contract in rent_contracts {
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.contract_id));
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.node_id));
+                        });
+                        row.col(|ui| {
+                            if ui.label(format!("{}", contract.twin_id)).hovered() {
+                                egui::show_tooltip(
+                                    ui.ctx(),
+                                    egui::Id::new("contract_twin_id_tooltip"),
+                                    |ui| {
+                                        ui.label(format!(
+                                            "This contract is created and owned by twin {}",
+                                            contract.twin_id
+                                        ));
+                                    },
+                                );
+                            };
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
                         });
                         row.col(|ui| {
                             ui.label("TODO");
