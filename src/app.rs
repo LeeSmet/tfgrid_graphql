@@ -99,14 +99,16 @@ impl App for UiState {
                 ui.colored_label(ui.visuals().error_fg_color, err);
             }
             Some(Ok(contracts)) => {
-                ui.collapsing("Node contracts", |ui| {
-                    ui_node_contracts(ui, &contracts.node_contracts);
-                });
-                ui.collapsing("Name contracts", |ui| {
-                    ui_name_contracts(ui, &contracts.name_contracts);
-                });
-                ui.collapsing("Rent contracts", |ui| {
-                    ui_rent_contracts(ui, &contracts.rent_contracts);
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.collapsing("Node contracts", |ui| {
+                        ui_node_contracts(ui, &contracts.node_contracts);
+                    });
+                    ui.collapsing("Name contracts", |ui| {
+                        ui_name_contracts(ui, &contracts.name_contracts);
+                    });
+                    ui.collapsing("Rent contracts", |ui| {
+                        ui_rent_contracts(ui, &contracts.rent_contracts);
+                    });
                 });
             }
         });
