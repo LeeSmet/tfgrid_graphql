@@ -6,7 +6,10 @@ use eframe::{
 };
 use egui_extras::{Column, TableBuilder};
 use poll_promise::Promise;
-use tfgrid_graphql::{contract::ContractState, graphql::Contracts};
+use tfgrid_graphql::{
+    contract::{ContractState, NodeContract},
+    graphql::Contracts,
+};
 
 pub struct UiState {
     client: tfgrid_graphql::graphql::Client,
@@ -96,141 +99,9 @@ impl App for UiState {
                 ui.colored_label(ui.visuals().error_fg_color, err);
             }
             Some(Ok(contracts)) => {
-                egui::ScrollArea::horizontal().show(ui, |ui| {
-                        TableBuilder::new(ui)
-                            .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
-                            .columns(Column::auto().resizable(true).clip(false), 14)
-                            .column(Column::remainder().clip(false).at_most(100.))
-                            .striped(true)
-                            .header(50.0, |mut header| {
-                                for title in [
-                                    "Contract ID",
-                                    "Node ID",
-                                    "Twin ID",
-                                    "Solution Provider ID",
-                                    "Cru",
-                                    "Mru",
-                                    "Sru",
-                                    "Hru",
-                                    "Nru",
-                                    "Public IPs",
-                                    "Total Cost",
-                                    "Deployment Hash",
-                                    "Deployment Data",
-                                    "Created",
-                                    "State",
-                                ] {
-                                    header.col(|ui| {
-                                        ui.heading(title);
-                                    });
-                                }
-                            })
-                            .body(|mut body| {
-                                for contract in &contracts.node_contracts {
-                                    body.row(30.0, |mut row| {
-                                        row.col(|ui| {
-                                            ui.label(format!("{}", contract.contract_id));
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(format!("{}", contract.node_id));
-                                        });
-                                        row.col(|ui| {
-                                            if ui.label(format!("{}", contract.twin_id)).hovered() {
-                                                egui::show_tooltip(
-                                                    ui.ctx(),
-                                                    egui::Id::new("contract_twin_id_tooltip"),
-                                                    |ui| {
-                                                        ui.label(format!(
-                                                            "This contract is created and owned by twin {}",
-                                                            contract.twin_id
-                                                        ));
-                                                    },
-                                                );
-                                            };
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(format!(
-                                                "{}",
-                                                contract.solution_provider_id.unwrap_or(0)
-                                            ));
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(if let Some(ref res) = contract.resources_used {
-                                                format!("{}", res.cru)
-                                            } else {
-                                                "-".to_string()
-                                            });
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(if let Some(ref res) = contract.resources_used {
-                                                fmt_resources(res.mru)
-                                            } else {
-                                                "-".to_string()
-                                            });
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(if let Some(ref res) = contract.resources_used {
-                                                fmt_resources(res.sru)
-                                            } else {
-                                                "-".to_string()
-                                            });
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(if let Some(ref res) = contract.resources_used {
-                                                fmt_resources(res.hru)
-                                            } else {
-                                                "-".to_string()
-                                            });
-                                        });
-                                        row.col(|ui| {
-                                            ui.label("TODO");
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(format!("{}", contract.number_of_public_ips));
-                                        });
-                                        row.col(|ui| {
-                                            ui.label("TODO");
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(&contract.deployment_hash);
-                                        });
-                                        row.col(|ui| {
-                                            if ui
-                                                .label(if contract.deployment_data.len() <= 30 {
-                                                    contract.deployment_data.clone()
-                                                } else {
-                                                    let mut dd = contract.deployment_data.clone();
-                                                    dd.truncate(30);
-                                                    dd
-                                                })
-                                                .hovered()
-                                            {
-                                                egui::show_tooltip(
-                                                    ui.ctx(),
-                                                    egui::Id::new("contract_deployment_data_tooltip"),
-                                                    |ui| {
-                                                        ui.label(if contract.deployment_data.is_empty() { "No contract data set on chain for this contract" } else { &contract.deployment_data });
-                                                    },
-                                                );
-                                            };
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(
-                                                Local
-                                                    .timestamp_opt(contract.created_at, 0)
-                                                    .single()
-                                                    .expect("Local time from timestamp is unambiguous")
-                                                    .format("%d/%m/%Y %H:%M:%S")
-                                                    .to_string(),
-                                            );
-                                        });
-                                        row.col(|ui| {
-                                            ui.label(format!("{}", contract.state));
-                                        });
-                                    });
-                                }
-                            });
-                    });
+                ui.collapsing("Node contracts", |ui| {
+                    ui_node_contracts(ui, &contracts.node_contracts);
+                });
             }
         });
 
@@ -323,6 +194,145 @@ impl App for UiState {
         //        rent_table.printstd();
         //    }
     }
+}
+
+fn ui_node_contracts(ui: &mut egui::Ui, node_contracts: &[NodeContract]) {
+    egui::ScrollArea::horizontal().show(ui, |ui| {
+        TableBuilder::new(ui)
+            .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
+            .columns(Column::auto().resizable(true).clip(false), 14)
+            .column(Column::remainder().clip(false).at_most(100.))
+            .striped(true)
+            .header(50.0, |mut header| {
+                for title in [
+                    "Contract ID",
+                    "Node ID",
+                    "Twin ID",
+                    "Solution Provider ID",
+                    "Cru",
+                    "Mru",
+                    "Sru",
+                    "Hru",
+                    "Nru",
+                    "Public IPs",
+                    "Total Cost",
+                    "Deployment Hash",
+                    "Deployment Data",
+                    "Created",
+                    "State",
+                ] {
+                    header.col(|ui| {
+                        ui.heading(title);
+                    });
+                }
+            })
+            .body(|mut body| {
+                for contract in node_contracts {
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.contract_id));
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.node_id));
+                        });
+                        row.col(|ui| {
+                            if ui.label(format!("{}", contract.twin_id)).hovered() {
+                                egui::show_tooltip(
+                                    ui.ctx(),
+                                    egui::Id::new("contract_twin_id_tooltip"),
+                                    |ui| {
+                                        ui.label(format!(
+                                            "This contract is created and owned by twin {}",
+                                            contract.twin_id
+                                        ));
+                                    },
+                                );
+                            };
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
+                        });
+                        row.col(|ui| {
+                            ui.label(if let Some(ref res) = contract.resources_used {
+                                format!("{}", res.cru)
+                            } else {
+                                "-".to_string()
+                            });
+                        });
+                        row.col(|ui| {
+                            ui.label(if let Some(ref res) = contract.resources_used {
+                                fmt_resources(res.mru)
+                            } else {
+                                "-".to_string()
+                            });
+                        });
+                        row.col(|ui| {
+                            ui.label(if let Some(ref res) = contract.resources_used {
+                                fmt_resources(res.sru)
+                            } else {
+                                "-".to_string()
+                            });
+                        });
+                        row.col(|ui| {
+                            ui.label(if let Some(ref res) = contract.resources_used {
+                                fmt_resources(res.hru)
+                            } else {
+                                "-".to_string()
+                            });
+                        });
+                        row.col(|ui| {
+                            ui.label("TODO");
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.number_of_public_ips));
+                        });
+                        row.col(|ui| {
+                            ui.label("TODO");
+                        });
+                        row.col(|ui| {
+                            ui.label(&contract.deployment_hash);
+                        });
+                        row.col(|ui| {
+                            if ui
+                                .label(if contract.deployment_data.len() <= 30 {
+                                    contract.deployment_data.clone()
+                                } else {
+                                    let mut dd = contract.deployment_data.clone();
+                                    dd.truncate(30);
+                                    dd
+                                })
+                                .hovered()
+                            {
+                                egui::show_tooltip(
+                                    ui.ctx(),
+                                    egui::Id::new("contract_deployment_data_tooltip"),
+                                    |ui| {
+                                        ui.label(if contract.deployment_data.is_empty() {
+                                            "No contract data set on chain for this contract"
+                                        } else {
+                                            &contract.deployment_data
+                                        });
+                                    },
+                                );
+                            };
+                        });
+                        row.col(|ui| {
+                            ui.label(
+                                Local
+                                    .timestamp_opt(contract.created_at, 0)
+                                    .single()
+                                    .expect("Local time from timestamp is unambiguous")
+                                    .format("%d/%m/%Y %H:%M:%S")
+                                    .to_string(),
+                            );
+                        });
+                        row.col(|ui| {
+                            ui.label(format!("{}", contract.state));
+                        });
+                    });
+                }
+            });
+    });
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
