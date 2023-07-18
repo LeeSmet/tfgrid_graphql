@@ -1,3 +1,5 @@
+use std::{collections::BTreeSet, str::FromStr};
+
 use chrono::{Local, TimeZone};
 use eframe::{
     egui::{self, Layout},
@@ -18,6 +20,15 @@ pub struct UiState {
 }
 
 struct ContractOverview {
+    node_id_input: String,
+    twin_id_input: String,
+    contract_id_input: String,
+    node_ids: BTreeSet<u32>,
+    twin_ids: BTreeSet<u32>,
+    contract_ids: BTreeSet<u64>,
+    node_id_error: String,
+    twin_id_error: String,
+    contract_id_error: String,
     contract_loading: Option<Promise<Result<Contracts, String>>>,
 }
 
@@ -29,6 +40,15 @@ impl UiState {
             client: tfgrid_graphql::graphql::Client::mainnet().expect("can initiate client, TODO"),
             selected: MenuSelection::ContractOverview,
             contract_overview: ContractOverview {
+                node_id_input: String::new(),
+                twin_id_input: String::new(),
+                contract_id_input: String::new(),
+                node_ids: BTreeSet::new(),
+                twin_ids: BTreeSet::new(),
+                contract_ids: BTreeSet::new(),
+                node_id_error: String::new(),
+                twin_id_error: String::new(),
+                contract_id_error: String::new(),
                 contract_loading: None,
             },
         }
@@ -40,27 +60,20 @@ impl App for UiState {
         let Self {
             client,
             selected,
-            contract_overview: ContractOverview { contract_loading },
+            contract_overview:
+                ContractOverview {
+                    node_id_input,
+                    twin_id_input,
+                    contract_id_input,
+                    node_ids,
+                    twin_ids,
+                    contract_ids,
+                    node_id_error,
+                    twin_id_error,
+                    contract_id_error,
+                    contract_loading,
+                },
         } = self;
-
-        let cl = contract_loading.get_or_insert_with(|| {
-            let client = client.clone();
-            Promise::spawn_async(async move {
-                client
-                    .contracts(
-                        Some(&[1]),
-                        &[
-                            ContractState::Created,
-                            ContractState::GracePeriod,
-                            ContractState::OutOfFunds,
-                        ],
-                        None,
-                        &[],
-                        &[],
-                    )
-                    .await
-            })
-        });
 
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -98,28 +111,83 @@ impl App for UiState {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             match selected {
-                MenuSelection::ContractOverview => match cl.ready() {
-                    // todo
-                    None => {
-                        ui.spinner();
-                    }
-                    Some(Err(err)) => {
-                        ui.colored_label(ui.visuals().error_fg_color, err);
-                    }
-                    Some(Ok(contracts)) => {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            ui.collapsing("Node contracts", |ui| {
-                                ui_node_contracts(ui, &contracts.node_contracts);
-                            });
-                            ui.collapsing("Name contracts", |ui| {
-                                ui_name_contracts(ui, &contracts.name_contracts);
-                            });
-                            ui.collapsing("Rent contracts", |ui| {
-                                ui_rent_contracts(ui, &contracts.rent_contracts);
-                            });
-                        });
-                    }
-                },
+                MenuSelection::ContractOverview => {
+                    ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                        // Input elements
+                        ui_multi_input(ui, "Node ID:", node_id_error, node_id_input, node_ids);
+                        ui_multi_input(ui, "Twin ID:", twin_id_error, twin_id_input, twin_ids);
+                        ui_multi_input(
+                            ui,
+                            "Contract ID:",
+                            contract_id_error,
+                            contract_id_input,
+                            contract_ids,
+                        );
+                        if ui.button("Search").clicked() {
+                            let loading = if let Some(promise) = contract_loading {
+                                promise.ready().is_none()
+                            } else {
+                                false
+                            };
+
+                            if !loading {
+                                let client = client.clone();
+                                let node_ids = node_ids.iter().copied().collect::<Vec<_>>();
+                                let twin_ids = twin_ids.iter().copied().collect::<Vec<_>>();
+                                let contract_ids = contract_ids.iter().copied().collect::<Vec<_>>();
+                                *contract_loading = Some(Promise::spawn_async(async move {
+                                    client
+                                        .contracts(
+                                            if node_ids.is_empty() {
+                                                None
+                                            } else {
+                                                Some(&node_ids)
+                                            },
+                                            // Static filter for now
+                                            &[
+                                                ContractState::Created,
+                                                ContractState::GracePeriod,
+                                                ContractState::OutOfFunds,
+                                            ],
+                                            if twin_ids.is_empty() {
+                                                None
+                                            } else {
+                                                Some(&twin_ids)
+                                            },
+                                            &contract_ids,
+                                            &[],
+                                        )
+                                        .await
+                                }));
+                            }
+                        }
+
+                        if let Some(cl) = contract_loading {
+                            match cl.ready() {
+                                // todo
+                                None => {
+                                    ui.spinner();
+                                }
+                                Some(Err(err)) => {
+                                    ui.colored_label(ui.visuals().error_fg_color, err);
+                                }
+                                Some(Ok(contracts)) => {
+                                    egui::ScrollArea::vertical().show(ui, |ui| {
+                                        ui.collapsing("Node contracts", |ui| {
+                                            ui_node_contracts(ui, &contracts.node_contracts);
+                                        });
+                                        ui.collapsing("Name contracts", |ui| {
+                                            ui_name_contracts(ui, &contracts.name_contracts);
+                                        });
+                                        ui.collapsing("Rent contracts", |ui| {
+                                            ui_rent_contracts(ui, &contracts.rent_contracts);
+                                        });
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
                 _ => (),
             }
         });
@@ -406,6 +474,43 @@ fn ui_rent_contracts(ui: &mut egui::Ui, rent_contracts: &[RentContract]) {
                     });
                 }
             });
+    });
+}
+
+fn ui_multi_input<T>(
+    ui: &mut egui::Ui,
+    label_text: &str,
+    error_text: &mut String,
+    buffer: &mut String,
+    collection: &mut BTreeSet<T>,
+) where
+    T: FromStr + std::fmt::Display + Clone + Ord,
+    T::Err: std::fmt::Display,
+{
+    ui.horizontal(|ui| {
+        let label = ui.label(label_text);
+        ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+            let input_response = ui.text_edit_singleline(buffer).labelled_by(label.id);
+            if input_response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                // parse id, try to fetch data
+                let parse_res = buffer.parse::<T>();
+                match parse_res {
+                    Ok(node_id) => {
+                        collection.insert(node_id);
+                        error_text.clear();
+                    }
+                    Err(e) => *error_text = e.to_string(),
+                }
+            }
+            ui.colored_label(ui.visuals().error_fg_color, error_text);
+        });
+        ui.horizontal_top(|ui| {
+            for id in collection.clone() {
+                if ui.button(format!("{id}")).clicked() {
+                    collection.remove(&id);
+                };
+            }
+        });
     });
 }
 
