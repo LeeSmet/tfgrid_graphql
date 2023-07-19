@@ -227,7 +227,7 @@ impl Client {
         node_id: u32,
         start: i64,
         end: i64,
-    ) -> Result<Vec<UptimeEvent>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<UptimeEvent>, String> {
         Ok(self
             .client
             .post(&self.endpoint)
@@ -241,9 +241,11 @@ impl Client {
                 }),
             })
             .send()
-            .await?
+            .await
+            .map_err(|e| e.to_string())?
             .json::<GraphQLResponse<UptimeEventResponse>>()
-            .await?
+            .await
+            .map_err(|e| e.to_string())?
             .data
             .uptime_events)
     }

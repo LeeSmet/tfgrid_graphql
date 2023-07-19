@@ -1,8 +1,8 @@
 use std::{collections::BTreeSet, str::FromStr};
 
-use chrono::{Local, TimeZone};
+use chrono::{Local, NaiveDate, TimeZone};
 use eframe::{
-    egui::{self, Layout},
+    egui::{self, Layout, Widget},
     emath::Align,
     App,
 };
@@ -11,15 +11,18 @@ use poll_promise::Promise;
 use tfgrid_graphql::{
     contract::{ContractState, NameContract, NodeContract, RentContract},
     graphql::Contracts,
+    uptime::{calculate_node_state_changes, NodeState, NodeStateChange, UptimeEvent},
 };
 
 pub struct UiState {
     client: tfgrid_graphql::graphql::Client,
     selected: MenuSelection,
-    contract_overview: ContractOverview,
+    contract_overview: ContractOverviewPanel,
+    node_state: NodeStatePanel,
 }
 
-struct ContractOverview {
+/// State for the contract overview panel
+struct ContractOverviewPanel {
     node_id_input: String,
     twin_id_input: String,
     contract_id_input: String,
@@ -32,6 +35,16 @@ struct ContractOverview {
     contract_loading: Option<Promise<Result<Contracts, String>>>,
 }
 
+/// State for the node state panel
+struct NodeStatePanel {
+    node_id_input: String,
+    node_id_error: String,
+    node_id: Option<u32>,
+    range_start: chrono::NaiveDate,
+    range_end: chrono::NaiveDate,
+    node_loading: Option<Promise<Result<(Vec<UptimeEvent>, Vec<NodeStateChange>), String>>>,
+}
+
 impl UiState {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         log::debug!("{:?}", cc.integration_info);
@@ -39,7 +52,7 @@ impl UiState {
         Self {
             client: tfgrid_graphql::graphql::Client::mainnet().expect("can initiate client, TODO"),
             selected: MenuSelection::ContractOverview,
-            contract_overview: ContractOverview {
+            contract_overview: ContractOverviewPanel {
                 node_id_input: String::new(),
                 twin_id_input: String::new(),
                 contract_id_input: String::new(),
@@ -51,6 +64,14 @@ impl UiState {
                 contract_id_error: String::new(),
                 contract_loading: None,
             },
+            node_state: NodeStatePanel {
+                node_id_input: String::new(),
+                node_id_error: String::new(),
+                node_id: None,
+                range_start: chrono::NaiveDate::default(),
+                range_end: chrono::NaiveDate::default(),
+                node_loading: None,
+            },
         }
     }
 }
@@ -60,19 +81,8 @@ impl App for UiState {
         let Self {
             client,
             selected,
-            contract_overview:
-                ContractOverview {
-                    node_id_input,
-                    twin_id_input,
-                    contract_id_input,
-                    node_ids,
-                    twin_ids,
-                    contract_ids,
-                    node_id_error,
-                    twin_id_error,
-                    contract_id_error,
-                    contract_loading,
-                },
+            contract_overview,
+            node_state,
         } = self;
 
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
@@ -112,6 +122,18 @@ impl App for UiState {
         egui::CentralPanel::default().show(ctx, |ui| {
             match selected {
                 MenuSelection::ContractOverview => {
+                    let ContractOverviewPanel {
+                        node_id_input,
+                        twin_id_input,
+                        contract_id_input,
+                        node_ids,
+                        twin_ids,
+                        contract_ids,
+                        node_id_error,
+                        twin_id_error,
+                        contract_id_error,
+                        contract_loading,
+                    } = contract_overview;
                     ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                         // Input elements
                         ui_multi_input(ui, "Node ID:", node_id_error, node_id_input, node_ids);
@@ -181,6 +203,85 @@ impl App for UiState {
                                         });
                                         ui.collapsing("Rent contracts", |ui| {
                                             ui_rent_contracts(ui, &contracts.rent_contracts);
+                                        });
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+                MenuSelection::NodeState => {
+                    let NodeStatePanel {
+                        node_id_input,
+                        node_id_error,
+                        node_id,
+                        range_start,
+                        range_end,
+                        node_loading,
+                    } = node_state;
+                    ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                        // Input elements
+                        ui_single_input(ui, "Node ID:", node_id_error, node_id_input, node_id);
+                        ui.horizontal(|ui| {
+                            ui.label("Range start");
+                            egui_extras::DatePickerButton::new(range_start)
+                                .id_source("start_range")
+                                .ui(ui);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Range end:");
+                            egui_extras::DatePickerButton::new(range_end)
+                                .id_source("end_range")
+                                .ui(ui);
+                        });
+                        // only enable button if the node id input field contains something valid
+                        if ui
+                            .add_enabled(node_id.is_some(), egui::Button::new("Search"))
+                            .clicked()
+                        {
+                            let loading = if let Some(promise) = node_loading {
+                                promise.ready().is_none()
+                            } else {
+                                false
+                            };
+                            if !loading {
+                                let client = client.clone();
+                                let start = range_start
+                                    .signed_duration_since(NaiveDate::default())
+                                    .num_seconds();
+                                let end = range_end
+                                    .signed_duration_since(NaiveDate::default())
+                                    .num_seconds();
+                                // we can only reach here if the button is enabled, thus node_id
+                                // is set.
+                                let node_id = *node_id.as_ref().unwrap();
+                                *node_loading = Some(Promise::spawn_async(async move {
+                                    let uptimes = client.uptime_events(node_id, start, end).await?;
+                                    let node_states =
+                                        calculate_node_state_changes(&uptimes, start, end);
+                                    Ok((uptimes, node_states))
+                                }));
+                            }
+                        }
+
+                        if let Some(cl) = node_loading {
+                            match cl.ready() {
+                                // todo
+                                None => {
+                                    ui.with_layout(
+                                        Layout::centered_and_justified(egui::Direction::TopDown),
+                                        |ui| {
+                                            ui.spinner();
+                                        },
+                                    );
+                                }
+                                Some(Err(err)) => {
+                                    ui.colored_label(ui.visuals().error_fg_color, err);
+                                }
+                                Some(Ok((_, state_changes))) => {
+                                    egui::ScrollArea::vertical().show(ui, |ui| {
+                                        ui.collapsing("Node state changes", |ui| {
+                                            ui_node_state_changes(ui, &state_changes);
                                         });
                                     });
                                 }
@@ -315,14 +416,7 @@ fn ui_node_contracts(ui: &mut egui::Ui, node_contracts: &[NodeContract]) {
                             };
                         });
                         row.col(|ui| {
-                            ui.label(
-                                Local
-                                    .timestamp_opt(contract.created_at, 0)
-                                    .single()
-                                    .expect("Local time from timestamp is unambiguous")
-                                    .format("%d/%m/%Y %H:%M:%S")
-                                    .to_string(),
-                            );
+                            ui.label(fmt_local_time(contract.created_at));
                         });
                         row.col(|ui| {
                             ui.label(format!("{}", contract.state));
@@ -389,14 +483,7 @@ fn ui_name_contracts(ui: &mut egui::Ui, name_contracts: &[NameContract]) {
                             ui.label("TODO");
                         });
                         row.col(|ui| {
-                            ui.label(
-                                Local
-                                    .timestamp_opt(contract.created_at, 0)
-                                    .single()
-                                    .expect("Local time from timestamp is unambiguous")
-                                    .format("%d/%m/%Y %H:%M:%S")
-                                    .to_string(),
-                            );
+                            ui.label(fmt_local_time(contract.created_at));
                         });
                         row.col(|ui| {
                             ui.label(format!("{}", contract.state));
@@ -459,17 +546,45 @@ fn ui_rent_contracts(ui: &mut egui::Ui, rent_contracts: &[RentContract]) {
                             ui.label("TODO");
                         });
                         row.col(|ui| {
-                            ui.label(
-                                Local
-                                    .timestamp_opt(contract.created_at, 0)
-                                    .single()
-                                    .expect("Local time from timestamp is unambiguous")
-                                    .format("%d/%m/%Y %H:%M:%S")
-                                    .to_string(),
-                            );
+                            ui.label(fmt_local_time(contract.created_at));
                         });
                         row.col(|ui| {
                             ui.label(format!("{}", contract.state));
+                        });
+                    });
+                }
+            });
+    });
+}
+
+fn ui_node_state_changes(ui: &mut egui::Ui, state_changes: &[NodeStateChange]) {
+    egui::ScrollArea::horizontal().show(ui, |ui| {
+        TableBuilder::new(ui)
+            .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
+            .columns(Column::auto().resizable(true).clip(false), 2)
+            .column(Column::remainder().clip(false).at_most(100.))
+            .striped(true)
+            .header(50.0, |mut header| {
+                for title in ["", "Event", "Event detected"] {
+                    header.col(|ui| {
+                        ui.heading(title);
+                    });
+                }
+            })
+            .body(|mut body| {
+                for state_change in state_changes {
+                    let (emoji, msg) = node_state_formatted(state_change.state());
+                    body.row(30.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label(emoji.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                                ui.label(msg);
+                            });
+                        });
+                        row.col(|ui| {
+                            ui.label(fmt_local_time(state_change.timestamp()));
                         });
                     });
                 }
@@ -495,8 +610,8 @@ fn ui_multi_input<T>(
                 // parse id, try to fetch data
                 let parse_res = buffer.parse::<T>();
                 match parse_res {
-                    Ok(node_id) => {
-                        collection.insert(node_id);
+                    Ok(id) => {
+                        collection.insert(id);
                         error_text.clear();
                     }
                     Err(e) => *error_text = e.to_string(),
@@ -510,6 +625,39 @@ fn ui_multi_input<T>(
                     collection.remove(&id);
                 };
             }
+        });
+    });
+}
+
+fn ui_single_input<T>(
+    ui: &mut egui::Ui,
+    label_text: &str,
+    error_text: &mut String,
+    buffer: &mut String,
+    value: &mut Option<T>,
+) where
+    T: FromStr + std::fmt::Display + Clone + Ord,
+    T::Err: std::fmt::Display,
+{
+    ui.horizontal(|ui| {
+        let label = ui.label(label_text);
+        ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+            let input_response = ui.text_edit_singleline(buffer).labelled_by(label.id);
+            if input_response.changed() {
+                // parse id, try to fetch data
+                let parse_res = buffer.parse::<T>();
+                match parse_res {
+                    Ok(id) => {
+                        *value = Some(id);
+                        error_text.clear();
+                    }
+                    Err(e) => {
+                        *value = None;
+                        *error_text = e.to_string();
+                    }
+                }
+            }
+            ui.colored_label(ui.visuals().error_fg_color, error_text);
         });
     });
 }
@@ -550,4 +698,56 @@ fn fmt_resources(value: u64) -> String {
         v if v > KIB => format!("{:.2} KiB", value as f64 / KIB as f64),
         v => format!("{v} B"),
     }
+}
+
+// TODO: custom fonts
+/// Emoji for node boot.
+const UP_ARROW_EMOJI: char = '⬆';
+/// Emoji for node going offline.
+const DOWN_ARROW_EMOJI: char = '⬇';
+/// Emoji for impossible reboot.
+const BOOM_EMOJI: char = '☢';
+/// Emoji for node uptime drift.
+const CLOCK_EMOJI: char = '🕑';
+/// Emoji for unknown state.
+const QUESTION_MARK_EMOJI: char = '？';
+
+fn node_state_formatted(state: NodeState) -> (char, String) {
+    match state {
+        NodeState::Offline(ts) => (
+            DOWN_ARROW_EMOJI,
+            format!("Node went down at {}", fmt_local_time(ts)),
+        ),
+        NodeState::Booted(ts) => (
+            UP_ARROW_EMOJI,
+            format!("Node booted at {}", fmt_local_time(ts),),
+        ),
+        NodeState::ImpossibleReboot(ts) => (
+            BOOM_EMOJI,
+            format!(
+                "Supposed boot at {} which conflicts with other info",
+                fmt_local_time(ts),
+            ),
+        ),
+        NodeState::Drift(drift) => (
+            CLOCK_EMOJI,
+            format!("Uptime drift of {drift} seconds detected"),
+        ),
+        NodeState::Unknown(since) => (
+            QUESTION_MARK_EMOJI,
+            format!(
+                "Node status is unknown since {}, presumed down",
+                fmt_local_time(since),
+            ),
+        ),
+    }
+}
+
+fn fmt_local_time(ts: i64) -> String {
+    Local
+        .timestamp_opt(ts, 0)
+        .single()
+        .expect("Local time from timestamp is unambiguous")
+        .format("%d/%m/%Y %H:%M:%S")
+        .to_string()
 }
