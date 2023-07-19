@@ -2,8 +2,8 @@ use crate::compat::{de_i64, de_u64};
 use serde::{Deserialize, Serialize};
 
 /// Allowed difference between an advancement in uptime and an advancement in timestamp between 2
-/// consecutive events. Currently set to 5 minutes in the minting.
-const ALLOWED_UPTIME_DRIFT: i64 = 60 * 5;
+/// consecutive events. Currently set to 5 minutes in the minting, posed to change to 1 minute.
+const ALLOWED_UPTIME_DRIFT: i64 = 60 * 1;
 
 /// An uptime event on the grid.
 #[derive(Serialize, Deserialize)]
@@ -12,6 +12,18 @@ pub struct UptimeEvent {
     timestamp: i64,
     #[serde(deserialize_with = "de_u64")]
     uptime: u64,
+}
+
+impl UptimeEvent {
+    /// Return the timestamp of this event.
+    pub fn timestamp(&self) -> i64 {
+        self.timestamp
+    }
+
+    /// Return the uptime of this event.
+    pub fn uptime(&self) -> u64 {
+        self.uptime
+    }
 }
 
 /// A state change in a node

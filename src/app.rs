@@ -2,7 +2,11 @@ use std::{collections::BTreeSet, str::FromStr};
 
 use chrono::{Local, NaiveDate, TimeZone};
 use eframe::{
-    egui::{self, Layout, Widget},
+    egui::{
+        self,
+        plot::{Legend, Line, Plot, PlotPoints},
+        Layout, Widget,
+    },
     emath::Align,
     App,
 };
@@ -278,10 +282,85 @@ impl App for UiState {
                                 Some(Err(err)) => {
                                     ui.colored_label(ui.visuals().error_fg_color, err);
                                 }
-                                Some(Ok((_, state_changes))) => {
+                                Some(Ok((uptime_events, state_changes))) => {
                                     egui::ScrollArea::vertical().show(ui, |ui| {
                                         ui.collapsing("Node state changes", |ui| {
                                             ui_node_state_changes(ui, &state_changes);
+                                        });
+                                        ui.collapsing("Uptime event jitter", |ui| {
+                                            let jitter_data: PlotPoints = uptime_events
+                                                .as_slice()
+                                                .windows(2)
+                                                .map(|window| {
+                                                    [
+                                                        window[1].timestamp() as f64,
+                                                        if window[1].uptime()
+                                                            > (window[1].timestamp()
+                                                                - window[0].timestamp())
+                                                                as u64
+                                                        {
+                                                            ((window[1].uptime()
+                                                                - window[0].uptime())
+                                                                as i64
+                                                                - (window[1].timestamp()
+                                                                    - window[0].timestamp()))
+                                                                as f64
+                                                        } else {
+                                                            0.
+                                                        },
+                                                    ]
+                                                })
+                                                .collect();
+                                            let delay_data: PlotPoints = uptime_events
+                                                .as_slice()
+                                                .windows(2)
+                                                .map(|window| {
+                                                    [
+                                                        window[1].timestamp() as f64,
+                                                        if window[1].uptime()
+                                                            > (window[1].timestamp()
+                                                                - window[0].timestamp())
+                                                                as u64
+                                                        {
+                                                            (window[1].timestamp()
+                                                                - window[0].timestamp())
+                                                                as f64
+                                                        } else {
+                                                            0.
+                                                        },
+                                                    ]
+                                                })
+                                                .collect();
+                                            let jitter_line = Line::new(jitter_data).name("jitter");
+                                            let delay_line =
+                                                Line::new(delay_data).name("uptime spacing");
+                                            Plot::new("jitter_plot")
+                                                .label_formatter(|name, value| {
+                                                    if name == "jitter" {
+                                                        format!(
+                                                            "{}: {} seconds jitter",
+                                                            fmt_local_time(value.x as i64),
+                                                            // cast to i64 to avoid weird rounding
+                                                            value.y as i64,
+                                                        )
+                                                    } else if name == "uptime spacing" {
+                                                        format!(
+                                                            "{}: {:.2} minutes",
+                                                            fmt_local_time(value.x as i64),
+                                                            value.y / 60.,
+                                                        )
+                                                    } else {
+                                                        "".to_string()
+                                                    }
+                                                })
+                                                .x_axis_formatter(|value, _range| {
+                                                    fmt_local_time(value as i64)
+                                                })
+                                                .legend(Legend::default())
+                                                .show(ui, |plot_ui| {
+                                                    plot_ui.line(jitter_line);
+                                                    plot_ui.line(delay_line);
+                                                });
                                         });
                                     });
                                 }
