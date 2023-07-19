@@ -393,25 +393,27 @@ impl Client {
 mod tests {
     use super::Client;
 
-    #[test]
-    fn fetch_uptime_events() {
+    #[tokio::test]
+    async fn fetch_uptime_events() {
         let cl =
             Client::new("https://graph.grid.tf/graphql".to_string()).expect("Can create a client");
 
         let ues = cl
             .uptime_events(4200, 1663850262, 1663857474)
+            .await
             .expect("Can fetch uptime events from mainnet");
 
         assert_eq!(ues.len(), 2);
     }
 
-    #[test]
-    fn fetch_contract_bill_reports() {
+    #[tokio::test]
+    async fn fetch_contract_bill_reports() {
         let cl =
             Client::new("https://graph.grid.tf/graphql".to_string()).expect("Can create a client");
 
         let ues = cl
             .contract_bill_reports(Some(1663850262), Some(1663857474), &[])
+            .await
             .expect("Can fetch contract bill events from mainnet");
 
         assert_eq!(ues.len(), 223);
