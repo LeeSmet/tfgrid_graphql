@@ -45,6 +45,10 @@ struct ContractOverviewPanel {
     trigger_loads: bool,
 }
 
+/// helper type to avoid overly complex expressions.
+// TODO: translate this to struct
+type NodeStateInfo = (Vec<UptimeEvent>, Vec<NodeStateChange>);
+
 /// State for the node state panel
 struct NodeStatePanel {
     node_id_input: String,
@@ -52,7 +56,7 @@ struct NodeStatePanel {
     node_id: Option<u32>,
     range_start: chrono::NaiveDate,
     range_end: chrono::NaiveDate,
-    node_loading: Option<Promise<Result<(Vec<UptimeEvent>, Vec<NodeStateChange>), String>>>,
+    node_loading: Option<Promise<Result<NodeStateInfo, String>>>,
 }
 
 impl UiState {
@@ -410,8 +414,8 @@ impl App for UiState {
 fn ui_node_contracts<C, N>(
     ui: &mut egui::Ui,
     node_contracts: &[NodeContract],
-    nru_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
-    node_price_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    nru_loads: &mut [Option<Promise<Result<u64, String>>>],
+    node_price_loads: &mut [Option<Promise<Result<u64, String>>>],
     nru_loader: impl Fn(u64) -> N,
     cost_loader: impl Fn(u64) -> C,
 ) where
@@ -563,8 +567,8 @@ fn ui_node_contracts<C, N>(
 fn ui_name_contracts<C, N>(
     ui: &mut egui::Ui,
     name_contracts: &[NameContract],
-    nru_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
-    name_price_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    nru_loads: &mut [Option<Promise<Result<u64, String>>>],
+    name_price_loads: &mut [Option<Promise<Result<u64, String>>>],
     nru_loader: impl Fn(u64) -> N,
     cost_loader: impl Fn(u64) -> C,
 ) where
@@ -652,7 +656,7 @@ fn ui_name_contracts<C, N>(
 fn ui_rent_contracts<C>(
     ui: &mut egui::Ui,
     rent_contracts: &[RentContract],
-    rent_price_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    rent_price_loads: &mut [Option<Promise<Result<u64, String>>>],
     cost_loader: impl Fn(u64) -> C,
 ) where
     C: FnOnce() -> Promise<Result<u64, String>>,

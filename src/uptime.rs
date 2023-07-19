@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Allowed difference between an advancement in uptime and an advancement in timestamp between 2
 /// consecutive events. Currently set to 5 minutes in the minting, posed to change to 1 minute.
-const ALLOWED_UPTIME_DRIFT: i64 = 60 * 1;
+const ALLOWED_UPTIME_DRIFT: i64 = 60;
 
 /// An uptime event on the grid.
 #[derive(Serialize, Deserialize)]
