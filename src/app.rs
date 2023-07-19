@@ -37,6 +37,12 @@ struct ContractOverviewPanel {
     twin_id_error: String,
     contract_id_error: String,
     contract_loading: Option<Promise<Result<Contracts, String>>>,
+    node_nru_loads: Vec<Option<Promise<Result<u64, String>>>>,
+    name_nru_loads: Vec<Option<Promise<Result<u64, String>>>>,
+    node_price_loads: Vec<Option<Promise<Result<u64, String>>>>,
+    name_price_loads: Vec<Option<Promise<Result<u64, String>>>>,
+    rent_price_loads: Vec<Option<Promise<Result<u64, String>>>>,
+    trigger_loads: bool,
 }
 
 /// State for the node state panel
@@ -67,6 +73,12 @@ impl UiState {
                 twin_id_error: String::new(),
                 contract_id_error: String::new(),
                 contract_loading: None,
+                node_nru_loads: Vec::new(),
+                name_nru_loads: Vec::new(),
+                node_price_loads: Vec::new(),
+                name_price_loads: Vec::new(),
+                rent_price_loads: Vec::new(),
+                trigger_loads: false,
             },
             node_state: NodeStatePanel {
                 node_id_input: String::new(),
@@ -137,6 +149,12 @@ impl App for UiState {
                         twin_id_error,
                         contract_id_error,
                         contract_loading,
+                        node_nru_loads,
+                        name_nru_loads,
+                        node_price_loads,
+                        name_price_loads,
+                        rent_price_loads,
+                        trigger_loads,
                     } = contract_overview;
                     ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                         // Input elements
@@ -185,6 +203,7 @@ impl App for UiState {
                                         )
                                         .await
                                 }));
+                                *trigger_loads = true;
                             }
                         }
 
@@ -203,15 +222,92 @@ impl App for UiState {
                                     ui.colored_label(ui.visuals().error_fg_color, err);
                                 }
                                 Some(Ok(contracts)) => {
+                                    if *trigger_loads {
+                                        *node_nru_loads =
+                                            Vec::with_capacity(contracts.node_contracts.len());
+                                        for _ in 0..contracts.node_contracts.len() {
+                                            node_nru_loads.push(None);
+                                        }
+                                        *name_nru_loads =
+                                            Vec::with_capacity(contracts.name_contracts.len());
+                                        for _ in 0..contracts.name_contracts.len() {
+                                            name_nru_loads.push(None);
+                                        }
+                                        *node_price_loads =
+                                            Vec::with_capacity(contracts.node_contracts.len());
+                                        for _ in 0..contracts.node_contracts.len() {
+                                            node_price_loads.push(None);
+                                        }
+                                        *name_price_loads =
+                                            Vec::with_capacity(contracts.name_contracts.len());
+                                        for _ in 0..contracts.name_contracts.len() {
+                                            name_price_loads.push(None);
+                                        }
+                                        *rent_price_loads =
+                                            Vec::with_capacity(contracts.rent_contracts.len());
+                                        for _ in 0..contracts.rent_contracts.len() {
+                                            rent_price_loads.push(None);
+                                        }
+                                        *trigger_loads = false;
+                                    }
                                     egui::ScrollArea::vertical().show(ui, |ui| {
+                                        let nru_loader = |contract_id| {
+                                            let client = client.clone();
+                                            move || {
+                                                Promise::spawn_async(async move {
+                                                    Ok(client
+                                                        .nru_consumptions(&[contract_id])
+                                                        .await?
+                                                        .into_iter()
+                                                        .map(|nru_consumption| nru_consumption.nru)
+                                                        .sum())
+                                                })
+                                            }
+                                        };
+                                        let cost_loader = |contract_id| {
+                                            let client = client.clone();
+                                            move || {
+                                                Promise::spawn_async(async move {
+                                                    Ok(client
+                                                        .contract_bill_reports(
+                                                            None,
+                                                            None,
+                                                            &[contract_id],
+                                                        )
+                                                        .await?
+                                                        .into_iter()
+                                                        .map(|bill| bill.amount_billed)
+                                                        .sum())
+                                                })
+                                            }
+                                        };
                                         ui.collapsing("Node contracts", |ui| {
-                                            ui_node_contracts(ui, &contracts.node_contracts);
+                                            ui_node_contracts(
+                                                ui,
+                                                &contracts.node_contracts,
+                                                node_nru_loads,
+                                                node_price_loads,
+                                                nru_loader,
+                                                cost_loader,
+                                            );
                                         });
                                         ui.collapsing("Name contracts", |ui| {
-                                            ui_name_contracts(ui, &contracts.name_contracts);
+                                            ui_name_contracts(
+                                                ui,
+                                                &contracts.name_contracts,
+                                                name_nru_loads,
+                                                name_price_loads,
+                                                nru_loader,
+                                                cost_loader,
+                                            );
                                         });
                                         ui.collapsing("Rent contracts", |ui| {
-                                            ui_rent_contracts(ui, &contracts.rent_contracts);
+                                            ui_rent_contracts(
+                                                ui,
+                                                &contracts.rent_contracts,
+                                                rent_price_loads,
+                                                cost_loader,
+                                            );
                                         });
                                     });
                                 }
@@ -379,7 +475,17 @@ impl App for UiState {
     }
 }
 
-fn ui_node_contracts(ui: &mut egui::Ui, node_contracts: &[NodeContract]) {
+fn ui_node_contracts<C, N>(
+    ui: &mut egui::Ui,
+    node_contracts: &[NodeContract],
+    nru_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    node_price_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    nru_loader: impl Fn(u64) -> N,
+    cost_loader: impl Fn(u64) -> C,
+) where
+    N: FnOnce() -> Promise<Result<u64, String>>,
+    C: FnOnce() -> Promise<Result<u64, String>>,
+{
     egui::ScrollArea::horizontal().show(ui, |ui| {
         TableBuilder::new(ui)
             .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
@@ -464,13 +570,25 @@ fn ui_node_contracts(ui: &mut egui::Ui, node_contracts: &[NodeContract]) {
                         });
                     });
                     row.col(|ui| {
-                        ui.label("TODO");
+                        let nru_load =
+                            nru_loads[row_idx].get_or_insert_with(nru_loader(contract.contract_id));
+                        match nru_load.ready() {
+                            Some(Ok(nru)) => ui.label(fmt_resources(*nru)),
+                            Some(Err(err)) => ui.colored_label(ui.visuals().error_fg_color, err),
+                            None => ui.spinner(),
+                        };
                     });
                     row.col(|ui| {
                         ui.label(format!("{}", contract.number_of_public_ips));
                     });
                     row.col(|ui| {
-                        ui.label("TODO");
+                        let cost_load = node_price_loads[row_idx]
+                            .get_or_insert_with(cost_loader(contract.contract_id));
+                        match cost_load.ready() {
+                            Some(Ok(cost)) => ui.label(fmt_tft(*cost)),
+                            Some(Err(err)) => ui.colored_label(ui.visuals().error_fg_color, err),
+                            None => ui.spinner(),
+                        };
                     });
                     row.col(|ui| {
                         ui.label(&contract.deployment_hash);
@@ -510,7 +628,17 @@ fn ui_node_contracts(ui: &mut egui::Ui, node_contracts: &[NodeContract]) {
     });
 }
 
-fn ui_name_contracts(ui: &mut egui::Ui, name_contracts: &[NameContract]) {
+fn ui_name_contracts<C, N>(
+    ui: &mut egui::Ui,
+    name_contracts: &[NameContract],
+    nru_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    name_price_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    nru_loader: impl Fn(u64) -> N,
+    cost_loader: impl Fn(u64) -> C,
+) where
+    C: FnOnce() -> Promise<Result<u64, String>>,
+    N: FnOnce() -> Promise<Result<u64, String>>,
+{
     egui::ScrollArea::horizontal().show(ui, |ui| {
         TableBuilder::new(ui)
             .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
@@ -560,9 +688,22 @@ fn ui_name_contracts(ui: &mut egui::Ui, name_contracts: &[NameContract]) {
                         ui.label(&contract.name);
                     });
                     row.col(|ui| {
-                        ui.label("TODO");
+                        let nru_load =
+                            nru_loads[row_idx].get_or_insert_with(nru_loader(contract.contract_id));
+                        match nru_load.ready() {
+                            Some(Ok(nru)) => ui.label(fmt_resources(*nru)),
+                            Some(Err(err)) => ui.colored_label(ui.visuals().error_fg_color, err),
+                            None => ui.spinner(),
+                        };
                     });
                     row.col(|ui| {
+                        let cost_load = name_price_loads[row_idx]
+                            .get_or_insert_with(cost_loader(contract.contract_id));
+                        match cost_load.ready() {
+                            Some(Ok(cost)) => ui.label(fmt_tft(*cost)),
+                            Some(Err(err)) => ui.colored_label(ui.visuals().error_fg_color, err),
+                            None => ui.spinner(),
+                        };
                         ui.label("TODO");
                     });
                     row.col(|ui| {
@@ -576,7 +717,14 @@ fn ui_name_contracts(ui: &mut egui::Ui, name_contracts: &[NameContract]) {
     });
 }
 
-fn ui_rent_contracts(ui: &mut egui::Ui, rent_contracts: &[RentContract]) {
+fn ui_rent_contracts<C>(
+    ui: &mut egui::Ui,
+    rent_contracts: &[RentContract],
+    rent_price_loads: &mut Vec<Option<Promise<Result<u64, String>>>>,
+    cost_loader: impl Fn(u64) -> C,
+) where
+    C: FnOnce() -> Promise<Result<u64, String>>,
+{
     egui::ScrollArea::horizontal().show(ui, |ui| {
         TableBuilder::new(ui)
             .cell_layout(Layout::centered_and_justified(egui::Direction::LeftToRight))
@@ -625,7 +773,13 @@ fn ui_rent_contracts(ui: &mut egui::Ui, rent_contracts: &[RentContract]) {
                         ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
                     });
                     row.col(|ui| {
-                        ui.label("TODO");
+                        let cost_load = rent_price_loads[row_idx]
+                            .get_or_insert_with(cost_loader(contract.contract_id));
+                        match cost_load.ready() {
+                            Some(Ok(cost)) => ui.label(fmt_tft(*cost)),
+                            Some(Err(err)) => ui.colored_label(ui.visuals().error_fg_color, err),
+                            None => ui.spinner(),
+                        };
                     });
                     row.col(|ui| {
                         ui.label(fmt_local_time(contract.created_at));
@@ -830,4 +984,13 @@ fn fmt_local_time(ts: i64) -> String {
         .expect("Local time from timestamp is unambiguous")
         .format("%d/%m/%Y %H:%M:%S")
         .to_string()
+}
+
+/// Amount of the smallest on chain currency unit which equate 1 TFT. In other words, 1 TFT can be
+/// split up in this many pieces.
+const UNITS_PER_TFT: u64 = 10_000_000;
+
+/// Format an amount as value in TFT
+fn fmt_tft(amount: u64) -> String {
+    format!("{}.{} TFT", amount / UNITS_PER_TFT, amount % UNITS_PER_TFT)
 }

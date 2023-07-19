@@ -256,7 +256,7 @@ impl Client {
         start: Option<i64>,
         end: Option<i64>,
         contract_ids: &[u64],
-    ) -> Result<Vec<ContractBillReport>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<ContractBillReport>, String> {
         let mut offset = 0;
         let mut bill_reports = Vec::new();
         loop {
@@ -274,9 +274,11 @@ impl Client {
                     }),
                 })
                 .send()
-                .await?
+                .await
+                .map_err(|e| e.to_string())?
                 .json::<GraphQLResponse<ContractBillEventResponse>>()
-                .await?
+                .await
+                .map_err(|e| e.to_string())?
                 .data
                 .contract_bill_reports;
             let new_objects = new_bills.len();
@@ -353,7 +355,7 @@ impl Client {
     pub async fn nru_consumptions(
         &self,
         contract_ids: &[u64],
-    ) -> Result<Vec<NRUConsumption>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<NRUConsumption>, String> {
         let mut consumptions = Vec::new();
         let mut offset = 0;
         loop {
@@ -369,9 +371,11 @@ impl Client {
                     }),
                 })
                 .send()
-                .await?
+                .await
+                .map_err(|e| format!("{}", e))?
                 .json::<GraphQLResponse<NRUConsumptionResponse>>()
-                .await?
+                .await
+                .map_err(|e| format!("{}", e))?
                 .data
                 .consumption_reports;
             let found_objects = new_consumptions.len();
