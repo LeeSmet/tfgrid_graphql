@@ -192,7 +192,12 @@ impl App for UiState {
                             match cl.ready() {
                                 // todo
                                 None => {
-                                    ui.spinner();
+                                    ui.with_layout(
+                                        Layout::centered_and_justified(egui::Direction::TopDown),
+                                        |ui| {
+                                            ui.spinner();
+                                        },
+                                    );
                                 }
                                 Some(Err(err)) => {
                                     ui.colored_label(ui.visuals().error_fg_color, err);
