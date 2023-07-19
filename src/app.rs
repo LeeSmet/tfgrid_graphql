@@ -409,104 +409,103 @@ fn ui_node_contracts(ui: &mut egui::Ui, node_contracts: &[NodeContract]) {
                     });
                 }
             })
-            .body(|mut body| {
-                for contract in node_contracts {
-                    body.row(30.0, |mut row| {
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.contract_id));
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.node_id));
-                        });
-                        row.col(|ui| {
-                            if ui.label(format!("{}", contract.twin_id)).hovered() {
-                                egui::show_tooltip(
-                                    ui.ctx(),
-                                    egui::Id::new("contract_twin_id_tooltip"),
-                                    |ui| {
-                                        ui.label(format!(
-                                            "This contract is created and owned by twin {}",
-                                            contract.twin_id
-                                        ));
-                                    },
-                                );
-                            };
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
-                        });
-                        row.col(|ui| {
-                            ui.label(if let Some(ref res) = contract.resources_used {
-                                format!("{}", res.cru)
-                            } else {
-                                "-".to_string()
-                            });
-                        });
-                        row.col(|ui| {
-                            ui.label(if let Some(ref res) = contract.resources_used {
-                                fmt_resources(res.mru)
-                            } else {
-                                "-".to_string()
-                            });
-                        });
-                        row.col(|ui| {
-                            ui.label(if let Some(ref res) = contract.resources_used {
-                                fmt_resources(res.sru)
-                            } else {
-                                "-".to_string()
-                            });
-                        });
-                        row.col(|ui| {
-                            ui.label(if let Some(ref res) = contract.resources_used {
-                                fmt_resources(res.hru)
-                            } else {
-                                "-".to_string()
-                            });
-                        });
-                        row.col(|ui| {
-                            ui.label("TODO");
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.number_of_public_ips));
-                        });
-                        row.col(|ui| {
-                            ui.label("TODO");
-                        });
-                        row.col(|ui| {
-                            ui.label(&contract.deployment_hash);
-                        });
-                        row.col(|ui| {
-                            if ui
-                                .label(if contract.deployment_data.len() <= 30 {
-                                    contract.deployment_data.clone()
-                                } else {
-                                    let mut dd = contract.deployment_data.clone();
-                                    dd.truncate(30);
-                                    dd
-                                })
-                                .hovered()
-                            {
-                                egui::show_tooltip(
-                                    ui.ctx(),
-                                    egui::Id::new("contract_deployment_data_tooltip"),
-                                    |ui| {
-                                        ui.label(if contract.deployment_data.is_empty() {
-                                            "No contract data set on chain for this contract"
-                                        } else {
-                                            &contract.deployment_data
-                                        });
-                                    },
-                                );
-                            };
-                        });
-                        row.col(|ui| {
-                            ui.label(fmt_local_time(contract.created_at));
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.state));
+            .body(|body| {
+                body.rows(30.0, node_contracts.len(), |row_idx, mut row| {
+                    let contract = &node_contracts[row_idx];
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.contract_id));
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.node_id));
+                    });
+                    row.col(|ui| {
+                        if ui.label(format!("{}", contract.twin_id)).hovered() {
+                            egui::show_tooltip(
+                                ui.ctx(),
+                                egui::Id::new("contract_twin_id_tooltip"),
+                                |ui| {
+                                    ui.label(format!(
+                                        "This contract is created and owned by twin {}",
+                                        contract.twin_id
+                                    ));
+                                },
+                            );
+                        };
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
+                    });
+                    row.col(|ui| {
+                        ui.label(if let Some(ref res) = contract.resources_used {
+                            format!("{}", res.cru)
+                        } else {
+                            "-".to_string()
                         });
                     });
-                }
+                    row.col(|ui| {
+                        ui.label(if let Some(ref res) = contract.resources_used {
+                            fmt_resources(res.mru)
+                        } else {
+                            "-".to_string()
+                        });
+                    });
+                    row.col(|ui| {
+                        ui.label(if let Some(ref res) = contract.resources_used {
+                            fmt_resources(res.sru)
+                        } else {
+                            "-".to_string()
+                        });
+                    });
+                    row.col(|ui| {
+                        ui.label(if let Some(ref res) = contract.resources_used {
+                            fmt_resources(res.hru)
+                        } else {
+                            "-".to_string()
+                        });
+                    });
+                    row.col(|ui| {
+                        ui.label("TODO");
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.number_of_public_ips));
+                    });
+                    row.col(|ui| {
+                        ui.label("TODO");
+                    });
+                    row.col(|ui| {
+                        ui.label(&contract.deployment_hash);
+                    });
+                    row.col(|ui| {
+                        if ui
+                            .label(if contract.deployment_data.len() <= 30 {
+                                contract.deployment_data.clone()
+                            } else {
+                                let mut dd = contract.deployment_data.clone();
+                                dd.truncate(30);
+                                dd
+                            })
+                            .hovered()
+                        {
+                            egui::show_tooltip(
+                                ui.ctx(),
+                                egui::Id::new("contract_deployment_data_tooltip"),
+                                |ui| {
+                                    ui.label(if contract.deployment_data.is_empty() {
+                                        "No contract data set on chain for this contract"
+                                    } else {
+                                        &contract.deployment_data
+                                    });
+                                },
+                            );
+                        };
+                    });
+                    row.col(|ui| {
+                        ui.label(fmt_local_time(contract.created_at));
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.state));
+                    });
+                });
             });
     });
 }
@@ -534,46 +533,45 @@ fn ui_name_contracts(ui: &mut egui::Ui, name_contracts: &[NameContract]) {
                     });
                 }
             })
-            .body(|mut body| {
-                for contract in name_contracts {
-                    body.row(30.0, |mut row| {
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.contract_id));
-                        });
-                        row.col(|ui| {
-                            if ui.label(format!("{}", contract.twin_id)).hovered() {
-                                egui::show_tooltip(
-                                    ui.ctx(),
-                                    egui::Id::new("contract_twin_id_tooltip"),
-                                    |ui| {
-                                        ui.label(format!(
-                                            "This contract is created and owned by twin {}",
-                                            contract.twin_id
-                                        ));
-                                    },
-                                );
-                            };
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
-                        });
-                        row.col(|ui| {
-                            ui.label(&contract.name);
-                        });
-                        row.col(|ui| {
-                            ui.label("TODO");
-                        });
-                        row.col(|ui| {
-                            ui.label("TODO");
-                        });
-                        row.col(|ui| {
-                            ui.label(fmt_local_time(contract.created_at));
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.state));
-                        });
+            .body(|body| {
+                body.rows(30.0, name_contracts.len(), |row_idx, mut row| {
+                    let contract = &name_contracts[row_idx];
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.contract_id));
                     });
-                }
+                    row.col(|ui| {
+                        if ui.label(format!("{}", contract.twin_id)).hovered() {
+                            egui::show_tooltip(
+                                ui.ctx(),
+                                egui::Id::new("contract_twin_id_tooltip"),
+                                |ui| {
+                                    ui.label(format!(
+                                        "This contract is created and owned by twin {}",
+                                        contract.twin_id
+                                    ));
+                                },
+                            );
+                        };
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
+                    });
+                    row.col(|ui| {
+                        ui.label(&contract.name);
+                    });
+                    row.col(|ui| {
+                        ui.label("TODO");
+                    });
+                    row.col(|ui| {
+                        ui.label("TODO");
+                    });
+                    row.col(|ui| {
+                        ui.label(fmt_local_time(contract.created_at));
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.state));
+                    });
+                });
             });
     });
 }
@@ -600,43 +598,42 @@ fn ui_rent_contracts(ui: &mut egui::Ui, rent_contracts: &[RentContract]) {
                     });
                 }
             })
-            .body(|mut body| {
-                for contract in rent_contracts {
-                    body.row(30.0, |mut row| {
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.contract_id));
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.node_id));
-                        });
-                        row.col(|ui| {
-                            if ui.label(format!("{}", contract.twin_id)).hovered() {
-                                egui::show_tooltip(
-                                    ui.ctx(),
-                                    egui::Id::new("contract_twin_id_tooltip"),
-                                    |ui| {
-                                        ui.label(format!(
-                                            "This contract is created and owned by twin {}",
-                                            contract.twin_id
-                                        ));
-                                    },
-                                );
-                            };
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
-                        });
-                        row.col(|ui| {
-                            ui.label("TODO");
-                        });
-                        row.col(|ui| {
-                            ui.label(fmt_local_time(contract.created_at));
-                        });
-                        row.col(|ui| {
-                            ui.label(format!("{}", contract.state));
-                        });
+            .body(|body| {
+                body.rows(30.0, rent_contracts.len(), |row_idx, mut row| {
+                    let contract = &rent_contracts[row_idx];
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.contract_id));
                     });
-                }
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.node_id));
+                    });
+                    row.col(|ui| {
+                        if ui.label(format!("{}", contract.twin_id)).hovered() {
+                            egui::show_tooltip(
+                                ui.ctx(),
+                                egui::Id::new("contract_twin_id_tooltip"),
+                                |ui| {
+                                    ui.label(format!(
+                                        "This contract is created and owned by twin {}",
+                                        contract.twin_id
+                                    ));
+                                },
+                            );
+                        };
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.solution_provider_id.unwrap_or(0)));
+                    });
+                    row.col(|ui| {
+                        ui.label("TODO");
+                    });
+                    row.col(|ui| {
+                        ui.label(fmt_local_time(contract.created_at));
+                    });
+                    row.col(|ui| {
+                        ui.label(format!("{}", contract.state));
+                    });
+                });
             });
     });
 }
@@ -655,23 +652,22 @@ fn ui_node_state_changes(ui: &mut egui::Ui, state_changes: &[NodeStateChange]) {
                     });
                 }
             })
-            .body(|mut body| {
-                for state_change in state_changes {
+            .body(|body| {
+                body.rows(30.0, state_changes.len(), |row_idx, mut row| {
+                    let state_change = &state_changes[row_idx];
                     let (emoji, msg) = node_state_formatted(state_change.state());
-                    body.row(30.0, |mut row| {
-                        row.col(|ui| {
-                            ui.label(emoji.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                                ui.label(msg);
-                            });
-                        });
-                        row.col(|ui| {
-                            ui.label(fmt_local_time(state_change.timestamp()));
+                    row.col(|ui| {
+                        ui.label(emoji.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                            ui.label(msg);
                         });
                     });
-                }
+                    row.col(|ui| {
+                        ui.label(fmt_local_time(state_change.timestamp()));
+                    });
+                });
             });
     });
 }
