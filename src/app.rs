@@ -118,11 +118,16 @@ impl App for UiState {
         });
 
         egui::TopBottomPanel::bottom("footer").show(ctx, |ui| {
-            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                ui.label("CPU Usage:");
-                ui.label(format!("{:.2} %", frame.info().cpu_usage.unwrap_or(0.)));
-                ui.label("|");
-            })
+            ui.horizontal_centered(|ui| {
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    ui.label("CPU Usage:");
+                    ui.label(format!("{:.2} %", frame.info().cpu_usage.unwrap_or(0.)));
+                    ui.label("|");
+                });
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    egui::warn_if_debug_build(ui);
+                });
+            });
         });
 
         egui::SidePanel::left("menu").show(ctx, |ui| {
