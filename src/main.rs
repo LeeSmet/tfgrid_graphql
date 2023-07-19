@@ -1,59 +1,39 @@
 #![warn(clippy::all)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use chrono::{Local, TimeZone};
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use prettytable::{format::TableFormat, row, Table};
-use std::{collections::HashMap, time::SystemTime};
-use tfgrid_graphql::{
-    contract::ContractState,
-    graphql::{Client, Contracts},
-    period::Period,
-    uptime::{calculate_node_state_changes, NodeState},
-};
 
 mod app;
 
-/// Amount of time to wait after a period for possible uptime events for minting purposes.
-const POST_PERIOD_UPTIME_FETCH: i64 = 3 * 60 * 60;
-
-/// Amount of seconds in an hour.
-const SECONDS_IN_HOUR: i64 = 3_600;
-
-/// Amount of the smallest on chain currency unit which equate 1 TFT. In other words, 1 TFT can be
-/// split up in this many pieces.
-const UNITS_PER_TFT: u64 = 10_000_000;
-
-/// Value of 1 KiB.
-const KIB: u64 = 1 << 10;
-/// Value of 1 MiB.
-const MIB: u64 = 1 << 20;
-/// Value of 1 GiB.
-const GIB: u64 = 1 << 30;
-/// Value of 1 TiB.
-const TIB: u64 = 1 << 40;
-
-/// The states of a contract which are considered to be active.
-const ACTIVE_CONTRACT_STATES: [ContractState; 2] =
-    [ContractState::Created, ContractState::GracePeriod];
-/// All contract states, this includes expired contract states.
-const ALL_STATES: [ContractState; 4] = [
-    ContractState::Created,
-    ContractState::GracePeriod,
-    ContractState::OutOfFunds,
-    ContractState::Deleted,
-];
-
-/// Emoji for node boot.
-const UP_ARROW_EMOJI: char = '🡅';
-/// Emoji for node going offline.
-const DOWN_ARROW_EMOJI: char = '🡇';
-/// Emoji for impossible reboot.
-const BOOM_EMOJI: char = '💥';
-/// Emoji for node uptime drift.
-const CLOCK_EMOJI: char = '🕑';
-/// Emoji for unknown state.
-const QUESTION_MARK_EMOJI: char = '❓';
+// /// Amount of time to wait after a period for possible uptime events for minting purposes.
+// const POST_PERIOD_UPTIME_FETCH: i64 = 3 * 60 * 60;
+//
+// /// Amount of seconds in an hour.
+// const SECONDS_IN_HOUR: i64 = 3_600;
+//
+// /// Amount of the smallest on chain currency unit which equate 1 TFT. In other words, 1 TFT can be
+// /// split up in this many pieces.
+// const UNITS_PER_TFT: u64 = 10_000_000;
+//
+// /// Value of 1 KiB.
+// const KIB: u64 = 1 << 10;
+// /// Value of 1 MiB.
+// const MIB: u64 = 1 << 20;
+// /// Value of 1 GiB.
+// const GIB: u64 = 1 << 30;
+// /// Value of 1 TiB.
+// const TIB: u64 = 1 << 40;
+//
+// /// The states of a contract which are considered to be active.
+// const ACTIVE_CONTRACT_STATES: [ContractState; 2] =
+//     [ContractState::Created, ContractState::GracePeriod];
+// /// All contract states, this includes expired contract states.
+// const ALL_STATES: [ContractState; 4] = [
+//     ContractState::Created,
+//     ContractState::GracePeriod,
+//     ContractState::OutOfFunds,
+//     ContractState::Deleted,
+// ];
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
