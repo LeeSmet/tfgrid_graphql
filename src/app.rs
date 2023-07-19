@@ -93,7 +93,7 @@ impl UiState {
 }
 
 impl App for UiState {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         let Self {
             client,
             selected,
@@ -107,14 +107,18 @@ impl App for UiState {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {
-                        _frame.close();
+                        frame.close();
                     }
                 });
             });
         });
 
         egui::TopBottomPanel::bottom("footer").show(ctx, |ui| {
-            // todo
+            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                ui.label("CPU Usage:");
+                ui.label(format!("{:.2} %", frame.info().cpu_usage.unwrap_or(0.)));
+                ui.label("|");
+            })
         });
 
         egui::SidePanel::left("menu").show(ctx, |ui| {
