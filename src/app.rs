@@ -341,13 +341,13 @@ impl App for UiState {
                         // Input elements
                         ui_single_input(ui, "Node ID:", node_id_error, node_id_input, node_id);
                         ui.horizontal(|ui| {
-                            ui.label("Range start");
+                            ui.label("Range start:");
                             egui_extras::DatePickerButton::new(range_start)
                                 .id_source("start_range")
                                 .ui(ui);
                         });
                         ui.horizontal(|ui| {
-                            ui.label("Range end:");
+                            ui.label("Range end:  ");
                             egui_extras::DatePickerButton::new(range_end)
                                 .id_source("end_range")
                                 .ui(ui);
