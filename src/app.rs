@@ -645,7 +645,6 @@ fn ui_name_contracts<C, N>(
                             Some(Err(err)) => ui.colored_label(ui.visuals().error_fg_color, err),
                             None => ui.spinner(),
                         };
-                        ui.label("TODO");
                     });
                     row.col(|ui| {
                         ui.label(fmt_local_time(contract.created_at));
