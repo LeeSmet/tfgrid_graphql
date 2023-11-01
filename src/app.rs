@@ -1,6 +1,9 @@
-use std::{collections::BTreeSet, str::FromStr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    str::FromStr,
+};
 
-use chrono::{Local, NaiveDate, TimeZone};
+use chrono::{DateTime, Local, NaiveDate, TimeZone};
 use eframe::{
     egui::{
         self,
@@ -13,6 +16,7 @@ use eframe::{
 use egui_extras::{Column, TableBuilder};
 use poll_promise::Promise;
 use tfgrid_graphql::{
+    bill_report::ContractBillReport,
     contract::{ContractState, NameContract, NodeContract, RentContract},
     graphql::Contracts,
     uptime::{calculate_node_state_changes, NodeState, NodeStateChange, UptimeEvent},
@@ -23,6 +27,7 @@ pub struct UiState {
     selected: MenuSelection,
     contract_overview: ContractOverviewPanel,
     node_state: NodeStatePanel,
+    total_billed_state: TotalBilledPanel,
 }
 
 /// State for the contract overview panel
@@ -59,6 +64,16 @@ struct NodeStatePanel {
     node_loading: Option<Promise<Result<NodeStateInfo, String>>>,
 }
 
+type BillHistory = Vec<ContractBillReport>;
+
+/// State for the total billed panel
+struct TotalBilledPanel {
+    hours_input: String,
+    hours_error: String,
+    hours: Option<usize>,
+    bills_loading: Option<Vec<Promise<Result<BillHistory, String>>>>,
+}
+
 impl UiState {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         log::debug!("{:?}", cc.integration_info);
@@ -92,6 +107,12 @@ impl UiState {
                 range_end: chrono::NaiveDate::default(),
                 node_loading: None,
             },
+            total_billed_state: TotalBilledPanel {
+                hours_input: String::new(),
+                hours_error: String::new(),
+                hours: None,
+                bills_loading: None,
+            },
         }
     }
 }
@@ -103,6 +124,7 @@ impl App for UiState {
             selected,
             contract_overview,
             node_state,
+            total_billed_state,
         } = self;
 
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
@@ -406,6 +428,99 @@ impl App for UiState {
                                         });
                                     });
                                 }
+                            }
+                        }
+                    });
+                }
+                MenuSelection::TotalBilled => {
+                    let TotalBilledPanel {
+                        hours_input,
+                        hours_error,
+                        hours,
+                        bills_loading,
+                    } = total_billed_state;
+                    ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
+                        // Input elements
+                        ui_single_input(ui, "Hours to check:", hours_input, hours_error, hours);
+                        if ui
+                            .add_enabled(hours.is_some(), egui::Button::new("Calculate"))
+                            .clicked()
+                        {
+                            let loading = if let Some(promises) = bills_loading {
+                                promises.iter().any(|p| p.ready().is_none())
+                            } else {
+                                false
+                            };
+                            if !loading {
+                                let client = client.clone();
+
+                                let hours = *hours.as_ref().unwrap();
+                                let end = chrono::offset::Local::now().timestamp();
+                                //let start = end - hours as i64 * 3600;
+
+                                *bills_loading = Some({
+                                    // load bill reports individually per hour
+                                    let mut promises = Vec::with_capacity(hours + 1);
+                                    for i in 0..hours {
+                                        let client = client.clone();
+                                        promises.push(Promise::spawn_async(async move {
+                                            let bills = client
+                                                .clone()
+                                                .contract_bill_reports(
+                                                    Some(end - (3600 * (i + 1)) as i64),
+                                                    Some(end - (3600 * i) as i64),
+                                                    &[],
+                                                )
+                                                .await?;
+                                            Ok(bills)
+                                        }));
+                                    }
+
+                                    promises
+                                });
+                            }
+                        }
+
+                        if let Some(promises) = bills_loading {
+                            let mut err = None;
+                            let mut one_ready = false;
+                            let mut ready_vals = Vec::with_capacity(promises.len());
+                            for promise in promises {
+                                match promise.ready() {
+                                    None => {
+                                        continue;
+                                    }
+                                    Some(Err(e)) => {
+                                        err = Some(e);
+                                        break;
+                                    }
+                                    Some(Ok(value)) => {
+                                        one_ready = true;
+                                        ready_vals.push(value);
+                                    }
+                                }
+                            }
+
+                            if err.is_some() {
+                                ui.colored_label(ui.visuals().error_fg_color, err.unwrap());
+                            } else if !one_ready {
+                                ui.with_layout(
+                                    Layout::centered_and_justified(egui::Direction::TopDown),
+                                    |ui| {
+                                        ui.spinner();
+                                    },
+                                );
+                            } else {
+                                egui::ScrollArea::vertical().show(ui, |ui| {
+                                    ui_bill_graph(
+                                        ui,
+                                        &ready_vals
+                                            .into_iter()
+                                            .flatten()
+                                            .copied()
+                                            .collect::<Vec<ContractBillReport>>(),
+                                    );
+                                });
                             }
                         }
                     });
@@ -821,6 +936,32 @@ fn ui_node_jitter_graph(ui: &mut egui::Ui, uptime_events: &[UptimeEvent]) {
         .show(ui, |plot_ui| {
             plot_ui.line(jitter_line);
             plot_ui.line(delay_line);
+        });
+}
+
+fn ui_bill_graph(ui: &mut egui::Ui, bill_reports: &[ContractBillReport]) {
+    let mut hourly_cost = BTreeMap::new();
+    for bill_report in bill_reports {
+        *hourly_cost.entry(bill_report.timestamp / 3600).or_insert(0) += bill_report.amount_billed;
+    }
+    let bill_data: PlotPoints = hourly_cost
+        .into_iter()
+        .map(|(k, v)| [(k * 3600) as f64, v as f64])
+        .collect();
+    let bill_cost_line = Line::new(bill_data).name("bill cost");
+    Plot::new("bill_cost_plot")
+        .label_formatter(|_, value| {
+            format!(
+                "{}: {:.7} TFT",
+                fmt_local_time(value.x as i64),
+                value.y / 10_000_000.,
+            )
+        })
+        .x_axis_formatter(|value, _range| fmt_local_time(value as i64))
+        .y_axis_formatter(|value, _range| format!("{} TFT", value as u64 / 10_000_000))
+        .legend(Legend::default())
+        .show(ui, |plot_ui| {
+            plot_ui.line(bill_cost_line);
         });
 }
 

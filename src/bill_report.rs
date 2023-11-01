@@ -2,7 +2,7 @@ use crate::compat::{de_i64, de_u64};
 use serde::{Deserialize, Serialize};
 
 /// A contract bill report on the grid.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractBillReport {
     #[serde(deserialize_with = "de_u64")]
@@ -14,7 +14,7 @@ pub struct ContractBillReport {
     pub discount_received: DiscountLevel,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 /// Level of discount applied for a contract bill.
 pub enum DiscountLevel {
     None,
