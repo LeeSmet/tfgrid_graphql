@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use chrono::{DateTime, Local, NaiveDate, TimeZone};
+use chrono::{Local, NaiveDate, TimeZone};
 use eframe::{
     egui::{
         self,
@@ -501,8 +501,8 @@ impl App for UiState {
                                 }
                             }
 
-                            if err.is_some() {
-                                ui.colored_label(ui.visuals().error_fg_color, err.unwrap());
+                            if let Some(e) = err {
+                                ui.colored_label(ui.visuals().error_fg_color, e);
                             } else if !one_ready {
                                 ui.with_layout(
                                     Layout::centered_and_justified(egui::Direction::TopDown),
