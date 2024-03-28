@@ -11,7 +11,7 @@ use std::time::Duration;
 const PAGE_SIZE: usize = 1000;
 
 const USER_AGENT: &str = "tfgrid_graphql_client";
-const MAINNET_URL: &str = "https://graph.grid.tf/graphql";
+const MAINNET_URL: &str = "https://graphql.grid.tf/graphql";
 const TESTNET_URL: &str = "https://graphql.test.grid.tf/graphql";
 const QANET_URL: &str = "https://graphql.qa.grid.tf/graphql";
 const DEVNET_URL: &str = "https://graphql.dev.grid.tf/graphql";
